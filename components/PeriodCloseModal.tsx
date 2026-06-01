@@ -329,7 +329,9 @@ export const PeriodCloseModal: React.FC<PeriodCloseModalProps> = (props) => {
   return (
     <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-900/80 p-4">
       <div className={`bg-white rounded-2xl shadow-2xl overflow-hidden flex flex-col
-        ${phase === 'supplement' ? 'w-full max-w-5xl h-[90vh]' : 'w-full max-w-2xl'}`}>
+        ${phase === 'supplement' ? 'w-full max-w-5xl h-[90vh]'
+          : phase === 'count'   ? 'w-full max-w-2xl h-[90vh]'
+          : 'w-full max-w-2xl max-h-[90vh]'}`}>
 
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 bg-slate-800 text-white shrink-0">

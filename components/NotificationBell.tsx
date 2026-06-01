@@ -96,43 +96,45 @@ export const NotificationBell: React.FC<Props> = ({ stationConfig }) => {
           }
         }
 
-        // ── 2. Nhắc chốt kho: 2 ngày cuối tháng HOẶC 2 ngày đầu tháng kế ──
-        const today   = new Date();
-        const day     = today.getDate();
-        const month   = today.getMonth() + 1; // 1-12
-        const year    = today.getFullYear();
+        // ── 2. Nhắc chốt kho: bắt đầu từ 2 ngày cuối tháng, hiện đến khi chốt ──
+        const today = new Date();
+        const day   = today.getDate();
+        const month = today.getMonth() + 1;
+        const year  = today.getFullYear();
 
         if (window.electron) {
+          const periods: any[] = await window.electron.getClosedPeriods(stationName);
+
+          // Xây danh sách các tháng cần kiểm tra:
+          // - Tháng hiện tại nếu đang trong 2 ngày cuối
+          // - Các tháng trước (tối đa 3 tháng) nếu chưa được chốt
+          const monthsToCheck: { m: number; y: number }[] = [];
+
           const lastDay = new Date(year, month, 0).getDate();
+          if (day >= lastDay - 1) {
+            monthsToCheck.push({ m: month, y: year });
+          }
+          for (let i = 1; i <= 3; i++) {
+            let m = month - i; let y = year;
+            if (m <= 0) { m += 12; y--; }
+            monthsToCheck.push({ m, y });
+          }
 
-          const isEndOfMonth       = day >= lastDay - 1; // ngày 29/30/31
-          const isStartOfNextMonth = day <= 2;           // ngày 1/2 tháng mới
-
-          if (isEndOfMonth || isStartOfNextMonth) {
-            // Xác định kỳ cần chốt
-            let checkMonth = month;
-            let checkYear  = year;
-            if (isStartOfNextMonth && !isEndOfMonth) {
-              // Đầu tháng mới → kỳ chưa chốt là tháng trước
-              checkMonth = month - 1;
-              if (checkMonth === 0) { checkMonth = 12; checkYear = year - 1; }
-            }
-
-            const periods: any[] = await window.electron.getClosedPeriods(stationName);
+          for (const { m: checkMonth, y: checkYear } of monthsToCheck) {
             const alreadyClosed = periods.some(
               p => p.periodType === 'MONTHLY' && p.periodYear === checkYear && p.periodRef === checkMonth
             );
-
             if (!alreadyClosed) {
-              const isOverdue = isStartOfNextMonth && !isEndOfMonth;
-              const daysLeft  = isEndOfMonth ? lastDay - day : 0;
+              const isCurrentMonth = checkMonth === month && checkYear === year;
+              const daysLeft = isCurrentMonth ? lastDay - day : 0;
+              const isOverdue = !isCurrentMonth;
 
               result.push({
                 id: `PERIOD_${checkYear}_${checkMonth}`,
                 type: 'PERIOD_CLOSE_DUE',
                 title: `Chốt kho tháng ${checkMonth}/${checkYear}`,
                 subtitle: isOverdue
-                  ? `Đã sang tháng ${month} — chưa chốt tháng trước!`
+                  ? `Quá hạn — chưa chốt tháng ${checkMonth}/${checkYear}!`
                   : daysLeft === 0
                     ? 'Hôm nay là ngày cuối tháng!'
                     : `Còn ${daysLeft} ngày cuối tháng`,
@@ -140,6 +142,7 @@ export const NotificationBell: React.FC<Props> = ({ stationConfig }) => {
                   ? '🔴 Khẩn! — Vào Kho dược → Chốt kỳ'
                   : '🟡 Nhắc nhở — Vào Kho dược → Chốt kỳ',
               });
+              break; // Chỉ hiện 1 thông báo cho kỳ chưa chốt gần nhất
             }
           }
         }

@@ -90,19 +90,15 @@ export const Inventory: React.FC<InventoryProps> = ({ stationConfig, refreshTrig
   const excelInputRef = useRef<HTMLInputElement>(null);
   const [showMedicineReport, setShowMedicineReport] = useState(false);
   const [showPeriodClose, setShowPeriodClose] = useState(false);
+  const [closedPeriods, setClosedPeriods] = useState<any[]>([]);
 
   // Batch edit/delete
   const [editingBatch, setEditingBatch] = useState<Medicine | null>(null);
   const [editBatchData, setEditBatchData] = useState<Partial<Medicine>>({});
   const isPrivileged = currentUser?.role === 'ADMIN' || currentUser?.role === 'MODERATOR';
 
-  // Chỉ cho phép chốt kỳ trong 2 ngày cuối tháng hoặc 2 ngày đầu tháng kế
-  const canClosePeriod = (() => {
-    const today   = new Date();
-    const day     = today.getDate();
-    const lastDay = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
-    return day >= lastDay - 1 || day <= 2;
-  })();
+  // Cho phép chốt kỳ bất kỳ lúc nào
+  const canClosePeriod = true;
 
   const [knownStations, setKnownStations] = useState<{name: string, type: string}[]>(() => storage.getKnownStations());
 
@@ -144,6 +140,9 @@ export const Inventory: React.FC<InventoryProps> = ({ stationConfig, refreshTrig
             if (list) setMedicines(list);
             const transactionLogs = await dataService.getInventoryLogs();
             if (transactionLogs) setLogs(transactionLogs);
+            // Load lịch sử chốt kỳ
+            const periods = await (window as any).electron.getClosedPeriods(stationConfig.name);
+            if (periods) setClosedPeriods(periods);
         } catch (error) { console.error("DB Error:", error); }
     } else {
         setMedicines(storage.getMedicines());
@@ -739,25 +738,12 @@ export const Inventory: React.FC<InventoryProps> = ({ stationConfig, refreshTrig
                     
                     <button onClick={() => loadData()} className="p-2 bg-gray-100 text-gray-600 rounded-lg hover:bg-gray-200 transition-colors"><RefreshCw size={20} className={isLoading ? 'animate-spin' : ''}/></button>
                     <button onClick={() => setShowMedicineReport(true)} className="flex items-center gap-1.5 px-3 py-2 bg-green-50 text-green-700 rounded-lg hover:bg-green-100 transition-colors text-sm font-bold border border-green-200"><FileSpreadsheet size={16}/><span>Báo cáo<span className="block text-[9px] font-normal opacity-80 leading-tight">报告</span></span></button>
-                    <div className="relative group">
-                      <button
-                        onClick={() => canClosePeriod && setShowPeriodClose(true)}
-                        disabled={!canClosePeriod}
-                        className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-bold shadow-md transition-colors ${
-                          canClosePeriod
-                            ? 'bg-indigo-600 text-white hover:bg-indigo-700'
-                            : 'bg-gray-200 text-gray-400 cursor-not-allowed shadow-none'
-                        }`}
-                      >
-                        <Lock size={16}/><span>Chốt kỳ<span className="block text-[9px] font-normal opacity-80 leading-tight">结算周期</span></span>
-                      </button>
-                      {!canClosePeriod && (
-                        <div className="absolute bottom-full right-0 mb-2 w-56 bg-gray-800 text-white text-xs rounded-lg px-3 py-2 hidden group-hover:block z-50 shadow-xl">
-                          Chỉ chốt kỳ 2 ngày cuối/đầu tháng<br/><span className="opacity-70">仅月末或月初2天可结算</span>
-                          <div className="absolute top-full right-4 border-4 border-transparent border-t-gray-800"></div>
-                        </div>
-                      )}
-                    </div>
+                    <button
+                      onClick={() => setShowPeriodClose(true)}
+                      className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-bold shadow-md transition-colors bg-indigo-600 text-white hover:bg-indigo-700"
+                    >
+                      <Lock size={16}/><span>Chốt kỳ<span className="block text-[9px] font-normal opacity-80 leading-tight">结算周期</span></span>
+                    </button>
                 </div>
            </div>
        )}
@@ -854,6 +840,35 @@ export const Inventory: React.FC<InventoryProps> = ({ stationConfig, refreshTrig
 
              {activeTab === 'history' && (
                  <div className="p-0">
+                     {/* ── Lịch sử chốt kỳ ── */}
+                     {closedPeriods.length > 0 && (
+                       <div className="p-4 border-b border-indigo-100 bg-indigo-50">
+                         <div className="flex items-center gap-2 mb-3">
+                           <Lock size={16} className="text-indigo-600"/>
+                           <span className="text-sm font-bold text-indigo-800">Lịch sử chốt kỳ / 结算记录</span>
+                           <span className="bg-indigo-200 text-indigo-800 text-xs font-bold px-2 py-0.5 rounded-full">{closedPeriods.length}</span>
+                         </div>
+                         <div className="grid grid-cols-2 gap-2 lg:grid-cols-3 xl:grid-cols-4">
+                           {[...closedPeriods].reverse().map((p: any, i: number) => {
+                             const d = new Date(p.closedAt || p.created_at || 0);
+                             const dateStr = `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+                             const label = p.periodType === 'MONTHLY'
+                               ? `T${String(p.periodRef).padStart(2,'0')}/${p.periodYear}`
+                               : `Q${p.periodRef}/${p.periodYear}`;
+                             return (
+                               <div key={i} className="bg-white border border-indigo-200 rounded-xl px-3 py-2.5 flex items-start gap-2 shadow-sm">
+                                 <Lock size={14} className="text-indigo-500 mt-0.5 shrink-0"/>
+                                 <div className="min-w-0">
+                                   <div className="font-bold text-indigo-800 text-sm">{label}</div>
+                                   <div className="text-xs text-gray-500 truncate">{p.closedBy || '—'}</div>
+                                   <div className="text-[10px] text-gray-400 font-mono">{dateStr}</div>
+                                 </div>
+                               </div>
+                             );
+                           })}
+                         </div>
+                       </div>
+                     )}
                      <div className="p-4 bg-gray-50 border-b border-gray-200 flex justify-between items-center sticky top-0 z-20 shadow-sm">
                          <div className="text-sm font-bold text-gray-600 flex items-center"><Clock size={18} className="mr-2 text-purple-600"/>Lịch sử giao dịch / 交易记录: <span className="ml-2 text-gray-900 bg-white px-2 py-0.5 rounded border border-gray-200 shadow-sm font-mono">{formatDate(startDate)} ➝ {formatDate(endDate)}</span></div>
                      </div>

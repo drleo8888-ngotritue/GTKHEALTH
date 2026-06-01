@@ -10,7 +10,7 @@
     "preview": "vite preview",
     "rebuild": "electron-rebuild -f -w sqlite3",
     "dist": "npm run build && electron-builder --win dir --x64 && node -e \"const fs=require('fs'),{execSync}=require('child_process'),v=require('./package.json').version,d='release/'+v;if(fs.existsSync(d))fs.rmSync(d,{recursive:true,force:true});try{fs.renameSync('release/win-unpacked',d)}catch(e){execSync('powershell -Command Rename-Item -Path release/win-unpacked -NewName '+v+' -Force')}\"",
-    "pack": "npm run build && npm run rebuild && electron-packager . GoertekVinaCare-SmartMedical --platform=win32 --arch=x64 --out=release-pkg --overwrite --asar --asar-unpack=node_modules/** --ignore=release --ignore=release-pkg --ignore=\\.git --icon=assets/Ico.png --electron-zip-dir=C:/Users/ADMIN/AppData/Local/electron/Cache",
+    "pack": "npm run build && npm run rebuild && electron-packager . GoertekVinaCare-SmartMedical --platform=win32 --arch=x64 --out=release-pkg --overwrite --asar --asar-unpack=node_modules/** --ignore=release --ignore=release-pkg --ignore=\\.git --icon=assets/Ico.png",
     "create-patch": "node create-patch.js"
   },
   "build": {

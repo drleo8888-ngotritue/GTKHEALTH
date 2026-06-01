@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Tư vấn AI — Cổng Sức Khỏe</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    html, body { height: 100%; }
+    #chatBox { scroll-behavior: smooth; }
+    .bubble-ai   { background:#f0f9ff; border:1px solid #bae6fd; }
+    .bubble-user { background:#1d4ed8; color:#fff; }
+    .typing-dot  { animation: blink 1s infinite; }
+    .typing-dot:nth-child(2) { animation-delay:.2s; }
+    .typing-dot:nth-child(3) { animation-delay:.4s; }
+    @keyframes blink { 0%,80%,100%{opacity:.2} 40%{opacity:1} }
+  </style>
+</head>
+<body class="bg-gray-50 flex flex-col h-screen">
+
+  <!-- Navbar -->
+  <nav class="bg-blue-700 text-white px-4 py-3 flex items-center justify-between shadow flex-shrink-0">
+    <div class="flex items-center gap-3">
+      <a href="/dashboard.html" class="text-white/70 hover:text-white">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
+        </svg>
+      </a>
+      <div class="w-8 h-8 bg-green-500 rounded-full flex items-center justify-center">
+        <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+            d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
+        </svg>
+      </div>
+      <div>
+        <p class="font-semibold text-sm">Trợ lý Sức Khỏe AI</p>
+        <p class="text-xs text-white/60">Powered by Gemini · Dữ liệu được bảo mật</p>
+      </div>
+    </div>
+    <button id="clearBtn" class="text-white/60 hover:text-white text-xs">Xóa chat</button>
+  </nav>
+
+  <!-- Privacy notice -->
+  <div class="bg-yellow-50 border-b border-yellow-200 px-4 py-2 text-xs text-yellow-800 flex items-center gap-2 flex-shrink-0">
+    <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+        d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
+    </svg>
+    <span>Tên, số điện thoại và số CCCD của bạn <strong>không được gửi</strong> cho AI — chỉ các chỉ số y tế ẩn danh.</span>
+  </div>
+
+  <!-- Chat messages -->
+  <div id="chatBox" class="flex-1 overflow-y-auto px-4 py-4 space-y-4">
+    <!-- Welcome message -->
+    <div class="flex gap-3">
+      <div class="w-8 h-8 bg-green-500 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+        <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+            d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"/>
+        </svg>
+      </div>
+      <div class="bubble-ai rounded-2xl rounded-tl-sm px-4 py-3 max-w-xs text-sm text-gray-800">
+        <p>Xin chào! Tôi là trợ lý sức khỏe AI. Tôi đã đọc hồ sơ y tế ẩn danh của bạn và sẵn sàng giải thích kết quả khám, đưa ra lời khuyên phòng bệnh, hoặc trả lời các câu hỏi về sức khỏe của bạn.</p>
+        <p class="mt-2 text-gray-500 text-xs">Lưu ý: Tôi không thay thế bác sĩ. Các vấn đề nghiêm trọng cần đến khám trực tiếp.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Suggested questions -->
+  <div id="suggestBox" class="px-4 pb-2 flex gap-2 flex-wrap flex-shrink-0">
+    <button class="suggest-btn text-xs bg-white border border-blue-200 text-blue-700 px-3 py-1.5 rounded-full hover:bg-blue-50 transition-colors">
+      Kết quả KSK của tôi có bình thường không?
+    </button>
+    <button class="suggest-btn text-xs bg-white border border-blue-200 text-blue-700 px-3 py-1.5 rounded-full hover:bg-blue-50 transition-colors">
+      Tôi cần lưu ý gì với sức khỏe hiện tại?
+    </button>
+    <button class="suggest-btn text-xs bg-white border border-blue-200 text-blue-700 px-3 py-1.5 rounded-full hover:bg-blue-50 transition-colors">
+      Tôi nên ăn uống thế nào để cải thiện sức khỏe?
+    </button>
+  </div>
+
+  <!-- Input bar -->
+  <div class="px-4 pb-4 pt-2 bg-white border-t border-gray-200 flex-shrink-0">
+    <div class="flex gap-2">
+      <textarea id="msgInput" rows="1"
+        class="flex-1 border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+        placeholder="Hỏi về sức khỏe của bạn..." style="max-height:120px;"></textarea>
+      <button id="sendBtn"
+        class="bg-blue-600 hover:bg-blue-700 text-white rounded-xl px-4 flex items-center gap-1 text-sm font-medium transition-colors disabled:opacity-50">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/>
+        </svg>
+        Gửi
+      </button>
+    </div>
+  </div>
+
+  <script>
+    const token = localStorage.getItem('gvc_portal_token');
+    if (!token) window.location.href = '/';
+
+    const chatBox = document.getElementById('chatBox');
+    const msgInput = document.getElementById('msgInput');
+    const sendBtn = document.getElementById('sendBtn');
+    // Groq/OpenAI format: [{role: 'user'|'assistant', content: string}]
+    let history = [];
+
+    msgInput.addEventListener('input', () => {
+      msgInput.style.height = 'auto';
+      msgInput.style.height = Math.min(msgInput.scrollHeight, 120) + 'px';
+    });
+
+    msgInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
+    });
+
+    document.querySelectorAll('.suggest-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        msgInput.value = btn.textContent.trim();
+        document.getElementById('suggestBox').remove();
+        sendMessage();
+      });
+    });
+
+    document.getElementById('clearBtn').addEventListener('click', () => {
+      if (confirm('Xóa toàn bộ lịch sử chat?')) {
+        history = [];
+        const bubbles = chatBox.querySelectorAll('.flex.gap-3');
+        bubbles.forEach((b, i) => { if (i > 0) b.remove(); });
+      }
+    });
+
+    // Tạo bubble user (có text ngay) hoặc AI (trả về element content để stream vào)
+    function appendBubble(role, text = '') {
+      const isUser = role === 'user';
+      const bubble = document.createElement('div');
+      bubble.className = `flex gap-3 ${isUser ? 'flex-row-reverse' : ''}`;
+      const avatar = document.createElement('div');
+      avatar.className = `w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5 text-white text-xs font-bold ${isUser ? 'bg-blue-600' : 'bg-green-500'}`;
+      avatar.textContent = isUser ? 'Tôi' : 'AI';
+      const content = document.createElement('div');
+      content.className = `${isUser ? 'bubble-user' : 'bubble-ai'} rounded-2xl ${isUser ? 'rounded-tr-sm' : 'rounded-tl-sm'} px-4 py-3 max-w-xs text-sm whitespace-pre-wrap`;
+      content.textContent = text;
+      bubble.appendChild(avatar);
+      bubble.appendChild(content);
+      chatBox.appendChild(bubble);
+      chatBox.scrollTop = chatBox.scrollHeight;
+      return content; // trả về để cập nhật khi stream
+    }
+
+    function showTyping() {
+      const bubble = document.createElement('div');
+      bubble.id = 'typing';
+      bubble.className = 'flex gap-3';
+      bubble.innerHTML = `
+        <div class="w-8 h-8 bg-green-500 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5 text-white text-xs font-bold">AI</div>
+        <div class="bubble-ai rounded-2xl rounded-tl-sm px-4 py-3 flex gap-1 items-center">
+          <span class="typing-dot w-2 h-2 bg-gray-400 rounded-full inline-block"></span>
+          <span class="typing-dot w-2 h-2 bg-gray-400 rounded-full inline-block"></span>
+          <span class="typing-dot w-2 h-2 bg-gray-400 rounded-full inline-block"></span>
+        </div>`;
+      chatBox.appendChild(bubble);
+      chatBox.scrollTop = chatBox.scrollHeight;
+    }
+
+    async function sendMessage() {
+      const msg = msgInput.value.trim();
+      if (!msg) return;
+
+      msgInput.value = '';
+      msgInput.style.height = 'auto';
+      sendBtn.disabled = true;
+      appendBubble('user', msg);
+      showTyping();
+
+      try {
+        const res = await fetch('/api/chat', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`,
+          },
+          body: JSON.stringify({ message: msg, history }),
+        });
+
+        document.getElementById('typing')?.remove();
+
+        if (res.status === 401) { localStorage.removeItem('gvc_portal_token'); window.location.href = '/'; return; }
+        if (res.status === 403) { window.location.href = '/change-password.html'; return; }
+
+        // Lỗi từ server trả về JSON
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          appendBubble('assistant', data.error || 'Có lỗi xảy ra, vui lòng thử lại.');
+          return;
+        }
+
+        // Đọc stream từng chunk, hiển thị real-time
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        const aiBubble = appendBubble('assistant', '');
+        let fullReply = '';
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          fullReply += decoder.decode(value, { stream: true });
+          aiBubble.textContent = fullReply;
+          chatBox.scrollTop = chatBox.scrollHeight;
+        }
+
+        // Lưu vào history theo format Groq/OpenAI
+        history.push({ role: 'user',      content: msg });
+        history.push({ role: 'assistant', content: fullReply });
+        if (history.length > 20) history = history.slice(-20);
+
+      } catch {
+        document.getElementById('typing')?.remove();
+        appendBubble('assistant', 'Không thể kết nối máy chủ, vui lòng thử lại.');
+      } finally {
+        sendBtn.disabled = false;
+        msgInput.focus();
+      }
+    }
+
+    document.getElementById('sendBtn').addEventListener('click', sendMessage);
+  </script>
+</body>
+</html>

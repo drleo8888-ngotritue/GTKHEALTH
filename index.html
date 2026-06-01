@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>GoertekVinaCare Smart Medical</title>
+    <link rel="icon" type="image/png" href="./Ico.png" />
+  <script type="importmap">
+{
+  "imports": {
+    "lucide-react": "https://esm.sh/lucide-react@^0.562.0",
+    "react/": "https://esm.sh/react@^19.2.3/",
+    "react": "https://esm.sh/react@^19.2.3",
+    "recharts": "https://esm.sh/recharts@^3.7.0",
+    "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
+    "xlsx": "https://esm.sh/xlsx@0.18.5",
+    "electron": "https://esm.sh/electron@^40.0.0"
+  }
+}
+</script>
+</head>
+  <body>
+    <div id="root"></div>
+  <script>
+    // ── Smart Zoom: tự động scale vừa màn hình mọi tỉ lệ ──
+    var DESIGN_W = 1280, DESIGN_H = 820;
+    var userZoom = 1.0;
+
+    function applyZoom() {
+      var vw = window.innerWidth;
+      var vh = window.innerHeight;
+      var scaleX = vw / DESIGN_W;
+      var scaleY = vh / DESIGN_H;
+      // Lấy min để không overflow cả chiều ngang lẫn dọc
+      var base  = Math.min(scaleX, scaleY);
+      var scale = Math.max(0.4, Math.min(3.0, base * userZoom));
+
+      document.documentElement.style.zoom = String(scale);
+
+      // FIX PORTRAIT: CSS zoom không ảnh hưởng 100vh, nên h-screen sẽ không
+      // fill đúng màn hình sau khi zoom. Đặt --app-h = chiều cao bù lại đúng.
+      // Sau zoom: (vh/scale) * scale = vh vật lý → fill đúng màn hình.
+      document.documentElement.style.setProperty('--app-h', Math.ceil(vh / scale) + 'px');
+    }
+
+    // Ctrl + Scroll để zoom thủ công
+    window.addEventListener('wheel', function(e) {
+      if (e.ctrlKey) {
+        e.preventDefault();
+        userZoom += e.deltaY > 0 ? -0.05 : 0.05;
+        userZoom = Math.max(0.5, Math.min(2.0, userZoom));
+        applyZoom();
+      }
+    }, { passive: false });
+
+    // Ctrl + 0 để reset zoom về mặc định
+    window.addEventListener('keydown', function(e) {
+      if (e.ctrlKey && (e.key === '0' || e.key === 'NumPad0')) {
+        e.preventDefault();
+        userZoom = 1.0;
+        applyZoom();
+      }
+    });
+
+    applyZoom();
+    window.addEventListener('resize', applyZoom);
+  </script>
+  <script type="module" src="/index.tsx"></script>
+</body>
+</html>

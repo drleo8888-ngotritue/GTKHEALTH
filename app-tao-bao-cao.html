@@ -1,0 +1,542 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>App Tạo Báo Cáo Y Tế</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #f1f5f9; }
+        .section-card { background: white; border-radius: 12px; padding: 24px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); margin-bottom: 20px; }
+        .section-title { font-size: 15px; font-weight: 700; color: #1e40af; margin-bottom: 16px; padding-bottom: 10px; border-bottom: 2px solid #dbeafe; display: flex; align-items: center; gap: 8px; }
+        .form-label { font-size: 13px; font-weight: 600; color: #475569; margin-bottom: 6px; display: block; }
+        .form-input { width: 100%; border: 1.5px solid #e2e8f0; border-radius: 8px; padding: 9px 12px; font-size: 14px; color: #1e293b; transition: border-color 0.2s; outline: none; font-family: 'Inter', sans-serif; }
+        .form-input:focus { border-color: #3b82f6; box-shadow: 0 0 0 3px rgba(59,130,246,0.1); }
+        .form-select { width: 100%; border: 1.5px solid #e2e8f0; border-radius: 8px; padding: 9px 12px; font-size: 14px; color: #1e293b; outline: none; font-family: 'Inter', sans-serif; background: white; }
+        .week-cell input { border: 1.5px solid #e2e8f0; border-radius: 6px; padding: 7px 8px; font-size: 13px; text-align: center; width: 100%; outline: none; font-family: 'Inter', sans-serif; }
+        .week-cell input:focus { border-color: #3b82f6; }
+        .btn-primary { background: #1d4ed8; color: white; border: none; border-radius: 10px; padding: 14px 32px; font-size: 15px; font-weight: 700; cursor: pointer; transition: background 0.2s; display: inline-flex; align-items: center; gap: 10px; }
+        .btn-primary:hover { background: #1e40af; }
+        .btn-secondary { background: #f1f5f9; color: #475569; border: none; border-radius: 10px; padding: 14px 24px; font-size: 14px; font-weight: 600; cursor: pointer; transition: background 0.2s; display: inline-flex; align-items: center; gap: 8px; }
+        .btn-secondary:hover { background: #e2e8f0; }
+        .trend-badge { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; font-weight: 600; padding: 3px 8px; border-radius: 20px; }
+        .badge-up { background: #fee2e2; color: #dc2626; }
+        .badge-down { background: #dcfce7; color: #16a34a; }
+        .badge-neutral { background: #f1f5f9; color: #64748b; }
+    </style>
+</head>
+<body class="p-4 md:p-8">
+
+    <div class="max-w-4xl mx-auto">
+        <!-- Header -->
+        <div class="section-card mb-6">
+            <div class="flex items-center justify-between flex-wrap gap-4">
+                <div>
+                    <h1 class="text-2xl font-bold text-slate-800 flex items-center gap-2">
+                        <i class="fa-solid fa-file-medical text-blue-600"></i>
+                        App Tạo Báo Cáo Y Tế
+                    </h1>
+                    <p class="text-sm text-slate-500 mt-1">Điền số liệu vào form bên dưới, sau đó bấm "Tạo báo cáo"</p>
+                </div>
+                <div class="flex items-center gap-2 bg-blue-50 text-blue-700 text-sm font-medium px-4 py-2 rounded-lg">
+                    <i class="fa-solid fa-circle-info"></i>
+                    Xuất được file HTML + PDF
+                </div>
+            </div>
+        </div>
+
+        <form id="reportForm">
+
+            <!-- PHẦN 1: Thông tin chung -->
+            <div class="section-card">
+                <div class="section-title">
+                    <i class="fa-solid fa-calendar-days"></i>
+                    Thông tin chung
+                </div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="form-label">Tháng báo cáo</label>
+                        <select id="thang" class="form-select">
+                            <option value="1">Tháng 1</option>
+                            <option value="2">Tháng 2</option>
+                            <option value="3" selected>Tháng 3</option>
+                            <option value="4">Tháng 4</option>
+                            <option value="5">Tháng 5</option>
+                            <option value="6">Tháng 6</option>
+                            <option value="7">Tháng 7</option>
+                            <option value="8">Tháng 8</option>
+                            <option value="9">Tháng 9</option>
+                            <option value="10">Tháng 10</option>
+                            <option value="11">Tháng 11</option>
+                            <option value="12">Tháng 12</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="form-label">Năm báo cáo</label>
+                        <input type="number" id="nam" class="form-input" value="2026" min="2020" max="2050">
+                    </div>
+                </div>
+            </div>
+
+            <!-- PHẦN 2: Chỉ số KPI -->
+            <div class="section-card">
+                <div class="section-title">
+                    <i class="fa-solid fa-chart-line"></i>
+                    Chỉ số KPI (4 thẻ tóm tắt)
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+
+                    <!-- KPI 1: Tổng lượt khám -->
+                    <div class="border border-slate-100 rounded-xl p-4 bg-slate-50">
+                        <p class="text-xs font-bold text-blue-600 uppercase tracking-wide mb-3"><i class="fa-solid fa-user-doctor mr-1"></i> Tổng lượt khám</p>
+                        <div class="space-y-3">
+                            <div>
+                                <label class="form-label">Số lượt khám trong tháng</label>
+                                <input type="number" id="kpi1_value" class="form-input" placeholder="VD: 125" value="125">
+                            </div>
+                            <div class="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label class="form-label">% thay đổi so với tháng trước</label>
+                                    <input type="number" id="kpi1_percent" class="form-input" placeholder="VD: 5" value="5">
+                                </div>
+                                <div>
+                                    <label class="form-label">Hướng thay đổi</label>
+                                    <select id="kpi1_trend" class="form-select">
+                                        <option value="down">Giảm ▼</option>
+                                        <option value="up">Tăng ▲</option>
+                                        <option value="neutral">Không đổi</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- KPI 2: Tai nạn lao động -->
+                    <div class="border border-slate-100 rounded-xl p-4 bg-slate-50">
+                        <p class="text-xs font-bold text-blue-600 uppercase tracking-wide mb-3"><i class="fa-solid fa-shield-heart mr-1"></i> Tai nạn lao động</p>
+                        <div class="space-y-3">
+                            <div>
+                                <label class="form-label">Số ca tai nạn</label>
+                                <input type="number" id="kpi2_value" class="form-input" placeholder="VD: 0" value="0">
+                            </div>
+                            <div>
+                                <label class="form-label">Ghi chú hiển thị</label>
+                                <input type="text" id="kpi2_note" class="form-input" placeholder="VD: Đạt mục tiêu an toàn" value="Đạt mục tiêu an toàn">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- KPI 3: Ca chuyển tuyến -->
+                    <div class="border border-slate-100 rounded-xl p-4 bg-slate-50">
+                        <p class="text-xs font-bold text-blue-600 uppercase tracking-wide mb-3"><i class="fa-solid fa-truck-medical mr-1"></i> Ca chuyển tuyến</p>
+                        <div class="space-y-3">
+                            <div>
+                                <label class="form-label">Số ca chuyển tuyến</label>
+                                <input type="number" id="kpi3_value" class="form-input" placeholder="VD: 3" value="3">
+                            </div>
+                            <div class="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label class="form-label">Thay đổi (số ca)</label>
+                                    <input type="number" id="kpi3_change" class="form-input" placeholder="VD: 1" value="1">
+                                </div>
+                                <div>
+                                    <label class="form-label">Hướng thay đổi</label>
+                                    <select id="kpi3_trend" class="form-select">
+                                        <option value="up" selected>Tăng ▲</option>
+                                        <option value="down">Giảm ▼</option>
+                                        <option value="neutral">Không đổi</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- KPI 4: Chi phí -->
+                    <div class="border border-slate-100 rounded-xl p-4 bg-slate-50">
+                        <p class="text-xs font-bold text-blue-600 uppercase tracking-wide mb-3"><i class="fa-solid fa-pills mr-1"></i> Chi phí Vật tư / Thuốc</p>
+                        <div class="space-y-3">
+                            <div>
+                                <label class="form-label">% đã sử dụng so với ngân sách tháng</label>
+                                <input type="number" id="kpi4_value" class="form-input" placeholder="VD: 85" value="85" min="0" max="100">
+                            </div>
+                            <div>
+                                <label class="form-label">Ghi chú hiển thị</label>
+                                <input type="text" id="kpi4_note" class="form-input" placeholder="VD: Ngân sách tháng" value="Ngân sách tháng">
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+
+            <!-- PHẦN 3: Biểu đồ xu hướng bệnh theo tuần -->
+            <div class="section-card">
+                <div class="section-title">
+                    <i class="fa-solid fa-chart-bar"></i>
+                    Xu hướng bệnh theo tuần (số ca mắc)
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="w-full">
+                        <thead>
+                            <tr class="text-xs font-bold text-slate-500 uppercase tracking-wide">
+                                <th class="text-left pb-3 pr-4 w-40">Nhóm bệnh</th>
+                                <th class="pb-3 px-2 text-center">Tuần 1</th>
+                                <th class="pb-3 px-2 text-center">Tuần 2</th>
+                                <th class="pb-3 px-2 text-center">Tuần 3</th>
+                                <th class="pb-3 px-2 text-center">Tuần 4</th>
+                            </tr>
+                        </thead>
+                        <tbody class="space-y-2">
+                            <tr>
+                                <td class="pr-4 pb-3">
+                                    <div class="flex items-center gap-2">
+                                        <div class="w-3 h-3 rounded-full bg-blue-800 flex-shrink-0"></div>
+                                        <input type="text" id="disease1_name" class="form-input text-sm py-2" value="Hô hấp" placeholder="Tên nhóm bệnh">
+                                    </div>
+                                </td>
+                                <td class="px-2 pb-3 week-cell"><input type="number" id="d1w1" value="12" min="0"></td>
+                                <td class="px-2 pb-3 week-cell"><input type="number" id="d1w2" value="18" min="0"></td>
+                                <td class="px-2 pb-3 week-cell"><input type="number" id="d1w3" value="15" min="0"></td>
+                                <td class="px-2 pb-3 week-cell"><input type="number" id="d1w4" value="11" min="0"></td>
+                            </tr>
+                            <tr>
+                                <td class="pr-4 pb-3">
+                                    <div class="flex items-center gap-2">
+                                        <div class="w-3 h-3 rounded-full bg-blue-500 flex-shrink-0"></div>
+                                        <input type="text" id="disease2_name" class="form-input text-sm py-2" value="Tiêu hóa" placeholder="Tên nhóm bệnh">
+                                    </div>
+                                </td>
+                                <td class="px-2 pb-3 week-cell"><input type="number" id="d2w1" value="5" min="0"></td>
+                                <td class="px-2 pb-3 week-cell"><input type="number" id="d2w2" value="10" min="0"></td>
+                                <td class="px-2 pb-3 week-cell"><input type="number" id="d2w3" value="9" min="0"></td>
+                                <td class="px-2 pb-3 week-cell"><input type="number" id="d2w4" value="7" min="0"></td>
+                            </tr>
+                            <tr>
+                                <td class="pr-4 pb-3">
+                                    <div class="flex items-center gap-2">
+                                        <div class="w-3 h-3 rounded-full bg-blue-300 flex-shrink-0"></div>
+                                        <input type="text" id="disease3_name" class="form-input text-sm py-2" value="Cơ xương khớp" placeholder="Tên nhóm bệnh">
+                                    </div>
+                                </td>
+                                <td class="px-2 pb-3 week-cell"><input type="number" id="d3w1" value="6" min="0"></td>
+                                <td class="px-2 pb-3 week-cell"><input type="number" id="d3w2" value="5" min="0"></td>
+                                <td class="px-2 pb-3 week-cell"><input type="number" id="d3w3" value="8" min="0"></td>
+                                <td class="px-2 pb-3 week-cell"><input type="number" id="d3w4" value="6" min="0"></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                <p class="text-xs text-slate-400 mt-2"><i class="fa-solid fa-circle-info mr-1"></i>Bạn có thể sửa tên nhóm bệnh tùy ý</p>
+            </div>
+
+            <!-- PHẦN 4: Tiến độ khám sức khỏe -->
+            <div class="section-card">
+                <div class="section-title">
+                    <i class="fa-solid fa-heart-pulse"></i>
+                    Tiến độ Khám sức khỏe (%)
+                </div>
+                <div class="space-y-4">
+                    <div class="grid grid-cols-3 gap-4">
+                        <div class="col-span-2">
+                            <label class="form-label">Loại khám 1</label>
+                            <input type="text" id="health1_name" class="form-input" value="Khám sức khỏe định kỳ">
+                        </div>
+                        <div>
+                            <label class="form-label">Tỷ lệ hoàn thành (%)</label>
+                            <input type="number" id="health1_pct" class="form-input" value="95" min="0" max="100">
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-3 gap-4">
+                        <div class="col-span-2">
+                            <label class="form-label">Loại khám 2</label>
+                            <input type="text" id="health2_name" class="form-input" value="Khám sức khỏe đầu vào">
+                        </div>
+                        <div>
+                            <label class="form-label">Tỷ lệ hoàn thành (%)</label>
+                            <input type="number" id="health2_pct" class="form-input" value="98" min="0" max="100">
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-3 gap-4">
+                        <div class="col-span-2">
+                            <label class="form-label">Loại khám 3</label>
+                            <input type="text" id="health3_name" class="form-input" value="Khám cấp phép LĐ">
+                        </div>
+                        <div>
+                            <label class="form-label">Tỷ lệ hoàn thành (%)</label>
+                            <input type="number" id="health3_pct" class="form-input" value="93" min="0" max="100">
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Nút hành động -->
+            <div class="flex justify-end gap-3 mt-2 mb-10">
+                <button type="button" class="btn-secondary" onclick="resetForm()">
+                    <i class="fa-solid fa-rotate-left"></i>
+                    Xóa trắng
+                </button>
+                <button type="button" class="btn-primary" onclick="generateReport()">
+                    <i class="fa-solid fa-wand-magic-sparkles"></i>
+                    Tạo báo cáo
+                </button>
+            </div>
+
+        </form>
+    </div>
+
+    <script>
+        function val(id) {
+            return document.getElementById(id).value;
+        }
+
+        function resetForm() {
+            if (confirm('Bạn có chắc muốn xóa trắng toàn bộ form không?')) {
+                document.getElementById('reportForm').reset();
+            }
+        }
+
+        function getKpi1Note() {
+            const trend = val('kpi1_trend');
+            const pct = val('kpi1_percent');
+            if (trend === 'up') return `<i class="fa-solid fa-arrow-up mr-1"></i>${pct}% so với tháng trước`;
+            if (trend === 'down') return `<i class="fa-solid fa-arrow-down mr-1"></i>${pct}% so với tháng trước`;
+            return `Không thay đổi so với tháng trước`;
+        }
+
+        function getKpi1Color() {
+            const trend = val('kpi1_trend');
+            if (trend === 'up') return 'text-green-600';
+            if (trend === 'down') return 'text-red-500';
+            return 'text-slate-500';
+        }
+
+        function getKpi3Note() {
+            const trend = val('kpi3_trend');
+            const change = val('kpi3_change');
+            if (trend === 'up') return `<i class="fa-solid fa-arrow-up mr-1"></i>Tăng ${change} ca`;
+            if (trend === 'down') return `<i class="fa-solid fa-arrow-down mr-1"></i>Giảm ${change} ca`;
+            return `Không thay đổi`;
+        }
+
+        function getKpi3Color() {
+            const trend = val('kpi3_trend');
+            if (trend === 'up') return 'text-blue-600';
+            if (trend === 'down') return 'text-green-600';
+            return 'text-slate-500';
+        }
+
+        function pad(n) { return n < 10 ? '0' + n : n; }
+
+        function generateReport() {
+            const thang = val('thang');
+            const nam = val('nam');
+            const tenThang = `Tháng ${thang}/${nam}`;
+
+            const kpi1_value = val('kpi1_value');
+            const kpi2_value = val('kpi2_value');
+            const kpi2_note = val('kpi2_note');
+            const kpi3_value = pad(parseInt(val('kpi3_value')));
+            const kpi4_value = val('kpi4_value');
+            const kpi4_note = val('kpi4_note');
+
+            const d1name = val('disease1_name');
+            const d2name = val('disease2_name');
+            const d3name = val('disease3_name');
+            const d1 = [val('d1w1'), val('d1w2'), val('d1w3'), val('d1w4')];
+            const d2 = [val('d2w1'), val('d2w2'), val('d2w3'), val('d2w4')];
+            const d3 = [val('d3w1'), val('d3w2'), val('d3w3'), val('d3w4')];
+
+            const h1name = val('health1_name');
+            const h1pct = val('health1_pct');
+            const h2name = val('health2_name');
+            const h2pct = val('health2_pct');
+            const h3name = val('health3_name');
+            const h3pct = val('health3_pct');
+
+            const kpi1Color = getKpi1Color();
+            const kpi1Note = getKpi1Note();
+            const kpi3Color = getKpi3Color();
+            const kpi3Note = getKpi3Note();
+
+            const html = `<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard Y Tế Doanh Nghiệp - ${tenThang}</title>
+    <script src="https://cdn.tailwindcss.com"><\/script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"><\/script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"><\/script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #f1f5f9; }
+        .card-shadow { box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06); }
+    </style>
+</head>
+<body class="p-4 md:p-8">
+    <div id="dashboardContent" class="max-w-7xl mx-auto space-y-6 bg-slate-50 p-2 rounded-xl">
+
+        <!-- Header -->
+        <div class="flex flex-col md:flex-row justify-between items-center bg-white p-6 rounded-xl card-shadow border-l-4 border-blue-600">
+            <div>
+                <h1 class="text-2xl font-bold text-slate-800">BÁO CÁO Y TẾ ${tenThang.toUpperCase()} NĂM ${nam}</h1>
+                <p class="text-sm text-slate-500 mt-1">Báo cáo tổng hợp số liệu Phòng Y Tế - ${tenThang}/${nam}</p>
+            </div>
+            <div class="mt-4 md:mt-0 flex gap-3">
+                <button id="exportPdfBtn" class="px-4 py-2 bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 transition font-medium text-sm">
+                    <i class="fa-solid fa-download mr-2"></i>Xuất PDF
+                </button>
+                <button class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition font-medium text-sm">
+                    <i class="fa-solid fa-calendar-days mr-2"></i>${tenThang}
+                </button>
+            </div>
+        </div>
+
+        <!-- KPI Cards -->
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            <div class="bg-white p-6 rounded-xl card-shadow flex items-center gap-4">
+                <div class="w-12 h-12 rounded-full bg-blue-50 flex items-center justify-center text-blue-600 text-xl">
+                    <i class="fa-solid fa-user-doctor"></i>
+                </div>
+                <div>
+                    <p class="text-sm font-medium text-slate-500">Tổng lượt khám</p>
+                    <h3 class="text-2xl font-bold text-slate-800">${kpi1_value}</h3>
+                    <p class="text-xs ${kpi1Color} font-medium mt-1">${kpi1Note}</p>
+                </div>
+            </div>
+            <div class="bg-white p-6 rounded-xl card-shadow flex items-center gap-4">
+                <div class="w-12 h-12 rounded-full bg-blue-50 flex items-center justify-center text-blue-600 text-xl">
+                    <i class="fa-solid fa-shield-heart"></i>
+                </div>
+                <div>
+                    <p class="text-sm font-medium text-slate-500">Tai nạn lao động</p>
+                    <h3 class="text-2xl font-bold text-slate-800">${kpi2_value}</h3>
+                    <p class="text-xs text-slate-500 font-medium mt-1"><i class="fa-solid fa-check mr-1"></i>${kpi2_note}</p>
+                </div>
+            </div>
+            <div class="bg-white p-6 rounded-xl card-shadow flex items-center gap-4">
+                <div class="w-12 h-12 rounded-full bg-blue-50 flex items-center justify-center text-blue-600 text-xl">
+                    <i class="fa-solid fa-truck-medical"></i>
+                </div>
+                <div>
+                    <p class="text-sm font-medium text-slate-500">Ca chuyển tuyến</p>
+                    <h3 class="text-2xl font-bold text-slate-800">${kpi3_value}</h3>
+                    <p class="text-xs ${kpi3Color} font-medium mt-1">${kpi3Note}</p>
+                </div>
+            </div>
+            <div class="bg-white p-6 rounded-xl card-shadow flex items-center gap-4">
+                <div class="w-12 h-12 rounded-full bg-blue-50 flex items-center justify-center text-blue-600 text-xl">
+                    <i class="fa-solid fa-pills"></i>
+                </div>
+                <div>
+                    <p class="text-sm font-medium text-slate-500">Chi phí Vật tư/Thuốc</p>
+                    <h3 class="text-2xl font-bold text-slate-800">${kpi4_value}%</h3>
+                    <p class="text-xs text-slate-500 font-medium mt-1">${kpi4_note}</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Charts Section -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div class="bg-white p-6 rounded-xl card-shadow lg:col-span-2">
+                <h3 class="text-lg font-bold text-slate-800 mb-4">Xu hướng các bệnh thường gặp theo tuần</h3>
+                <div class="relative h-80 w-full">
+                    <canvas id="weeklyDiseaseChart"></canvas>
+                </div>
+            </div>
+            <div class="bg-white p-6 rounded-xl card-shadow lg:col-span-1 flex flex-col">
+                <h3 class="text-lg font-bold text-slate-800 mb-6">Tiến độ Khám sức khỏe</h3>
+                <div class="space-y-8 flex-grow flex flex-col justify-center pb-4">
+                    <div>
+                        <div class="flex justify-between mb-2">
+                            <span class="text-sm font-medium text-slate-700">${h1name}</span>
+                            <span class="text-sm font-bold text-blue-700">${h1pct}%</span>
+                        </div>
+                        <div class="w-full bg-slate-100 rounded-full h-3">
+                            <div class="bg-blue-800 h-3 rounded-full" style="width: ${h1pct}%"></div>
+                        </div>
+                    </div>
+                    <div>
+                        <div class="flex justify-between mb-2">
+                            <span class="text-sm font-medium text-slate-700">${h2name}</span>
+                            <span class="text-sm font-bold text-blue-700">${h2pct}%</span>
+                        </div>
+                        <div class="w-full bg-slate-100 rounded-full h-3">
+                            <div class="bg-blue-600 h-3 rounded-full" style="width: ${h2pct}%"></div>
+                        </div>
+                    </div>
+                    <div>
+                        <div class="flex justify-between mb-2">
+                            <span class="text-sm font-medium text-slate-700">${h3name}</span>
+                            <span class="text-sm font-bold text-blue-700">${h3pct}%</span>
+                        </div>
+                        <div class="w-full bg-slate-100 rounded-full h-3">
+                            <div class="bg-blue-400 h-3 rounded-full" style="width: ${h3pct}%"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        Chart.defaults.font.family = "'Inter', sans-serif";
+        Chart.defaults.color = '#64748b';
+        const ctxWeekly = document.getElementById('weeklyDiseaseChart').getContext('2d');
+        new Chart(ctxWeekly, {
+            type: 'bar',
+            data: {
+                labels: ['Tuần 1', 'Tuần 2', 'Tuần 3', 'Tuần 4'],
+                datasets: [
+                    { label: '${d1name}', data: [${d1}], backgroundColor: '#1e40af', borderRadius: 4 },
+                    { label: '${d2name}', data: [${d2}], backgroundColor: '#3b82f6', borderRadius: 4 },
+                    { label: '${d3name}', data: [${d3}], backgroundColor: '#93c5fd', borderRadius: 4 }
+                ]
+            },
+            options: {
+                responsive: true, maintainAspectRatio: false,
+                plugins: { legend: { position: 'top', labels: { usePointStyle: true, boxWidth: 8 } } },
+                scales: {
+                    y: { beginAtZero: true, grid: { borderDash: [5, 5] } },
+                    x: { grid: { display: false } }
+                }
+            }
+        });
+
+        document.getElementById('exportPdfBtn').addEventListener('click', function() {
+            const btn = this;
+            const originalText = btn.innerHTML;
+            btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-2"></i>Đang xử lý...';
+            const element = document.getElementById('dashboardContent');
+            element.classList.remove('max-w-7xl');
+            element.style.width = '1120px';
+            const opt = {
+                margin: 0.2,
+                filename: 'Bao_Cao_Y_Te_${tenThang.replace(/\//g, '_').replace(/ /g, '_')}.pdf',
+                image: { type: 'jpeg', quality: 1 },
+                html2canvas: { scale: 2, useCORS: true },
+                jsPDF: { unit: 'in', format: 'a4', orientation: 'landscape' }
+            };
+            html2pdf().set(opt).from(element).save().then(() => {
+                btn.innerHTML = originalText;
+                element.style.width = '';
+                element.classList.add('max-w-7xl');
+            });
+        });
+    <\/script>
+</body>
+</html>`;
+
+            // Mở tab mới với báo cáo đã tạo
+            const newTab = window.open('', '_blank');
+            newTab.document.write(html);
+            newTab.document.close();
+        }
+    </script>
+</body>
+</html>

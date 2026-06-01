@@ -1,0 +1,76 @@
+{
+  "name": "goertekvinacare-smart-medical",
+  "private": true,
+  "version": "1.26.05.26",
+  "main": "main.js",
+  "scripts": {
+    "dev": "vite",
+    "start": "electron .",
+    "build": "vite build",
+    "preview": "vite preview",
+    "rebuild": "electron-rebuild -f -w sqlite3",
+    "dist": "npm run build && electron-builder --win dir --x64 && node -e \"const fs=require('fs'),{execSync}=require('child_process'),v=require('./package.json').version,d='release/'+v;if(fs.existsSync(d))fs.rmSync(d,{recursive:true,force:true});try{fs.renameSync('release/win-unpacked',d)}catch(e){execSync('powershell -Command Rename-Item -Path release/win-unpacked -NewName '+v+' -Force')}\"",
+    "pack": "npm run build && npm run rebuild && electron-packager . GoertekVinaCare-SmartMedical --platform=win32 --arch=x64 --out=release-pkg --overwrite --asar --asar-unpack=node_modules/** --ignore=release --ignore=release-pkg --ignore=\\.git --icon=assets/Ico.png --electron-zip-dir=C:/Users/ADMIN/AppData/Local/electron/Cache",
+    "create-patch": "node create-patch.js"
+  },
+  "build": {
+    "appId": "com.goertekvinacare.smartmedical",
+    "productName": "GoertekVinaCare Smart Medical",
+    "copyright": "Copyright © 2025 Goertek Vina",
+    "directories": {
+      "output": "release",
+      "buildResources": "assets"
+    },
+    "files": [
+      "dist/**/*",
+      "main.js",
+      "preload.js",
+      "db-service.js",
+      "sync-service.js",
+      "ipc-handlers.js",
+      "node_modules/**/*",
+      "!node_modules/**/{CHANGELOG.md,README.md,readme.md}",
+      "!node_modules/**/*.{ts,map}",
+      "!node_modules/.bin/**"
+    ],
+    "asarUnpack": [
+      "**/node_modules/sqlite3/**",
+      "**/node_modules/node-gyp-build/**",
+      "**/node_modules/bindings/**"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "dir",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "assets/Ico.png"
+    }
+  },
+  "dependencies": {
+    "lucide-react": "^0.562.0",
+    "react": "^19.2.3",
+    "react-dom": "^19.2.3",
+    "react-router-dom": "^7.13.0",
+    "recharts": "^3.7.0",
+    "sqlite3": "^5.1.7",
+    "xlsx": "0.18.5"
+  },
+  "devDependencies": {
+    "@electron/packager": "^19.0.5",
+    "@types/node": "^22.14.0",
+    "@vitejs/plugin-react": "^5.0.0",
+    "autoprefixer": "^10.4.27",
+    "electron": "^40.0.0",
+    "electron-builder": "^25.1.8",
+    "electron-rebuild": "^3.2.9",
+    "png2icons": "^2.0.1",
+    "postcss": "^8.5.6",
+    "tailwindcss": "^3.4.19",
+    "typescript": "~5.8.2",
+    "vite": "^6.2.0"
+  }
+}

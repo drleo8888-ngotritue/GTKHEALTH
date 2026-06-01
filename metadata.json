@@ -1,0 +1,5 @@
+{
+  "name": "GoertekVinaCare Smart Medical",
+  "description": "A touch-first, bilingual medical system for enterprise clinics featuring Hub/Spoke architecture, offline capabilities, and inventory management.",
+  "requestFramePermissions": []
+}

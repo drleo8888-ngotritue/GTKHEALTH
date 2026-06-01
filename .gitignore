@@ -1,0 +1,63 @@
+# Sensitive config — KHÔNG BAO GIỜ commit
+.env
+.env.local
+.env.*.local
+gvc-server/.env
+portal/.env
+
+# Claude Code local settings
+.claude/
+
+# Dependencies
+node_modules
+
+# Build outputs
+dist
+dist-ssr
+*.local
+
+# Electron build outputs (rất nặng, không cần track)
+release/
+release-pkg/
+.patch-temp/
+app.asar
+
+# Patch zips
+*.zip
+
+# Generated report files
+báo cáo*.html
+bao_cao*.html
+
+# Python bytecode
+__pycache__/
+*.pyc
+*.pyo
+
+# Database & sensitive data
+*.db
+*.db-journal
+*.db-shm
+*.db-wal
+
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Editor directories
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# OS
+Thumbs.db

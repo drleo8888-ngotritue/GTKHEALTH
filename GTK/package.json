@@ -1,0 +1,77 @@
+{
+  "name": "goertekvinacare-smart-medical",
+  "private": true,
+  "version": "1.0.0",
+  "main": "main.js",
+  "scripts": {
+    "dev": "vite",
+    "start": "electron .",
+    "build": "vite build",
+    "preview": "vite preview",
+    "rebuild": "electron-rebuild -f -w sqlite3",
+    "dist": "npm run build && electron-builder --win portable --x64",
+    "pack": "npm run build && npm run rebuild && electron-packager . GoertekVinaCare-SmartMedical --platform=win32 --arch=x64 --out=release-pkg --overwrite --asar --asar-unpack=**/node_modules/sqlite3/** --ignore=release --ignore=release-pkg --ignore=\\.git"
+  },
+  "build": {
+    "appId": "com.goertekvinacare.smartmedical",
+    "productName": "GoertekVinaCare Smart Medical",
+    "copyright": "Copyright © 2025 Goertek Vina",
+    "directories": {
+      "output": "release",
+      "buildResources": "assets"
+    },
+    "files": [
+      "dist/**/*",
+      "main.js",
+      "preload.js",
+      "db-service.js",
+      "sync-service.js",
+      "ipc-handlers.js",
+      "node_modules/**/*",
+      "!node_modules/**/{CHANGELOG.md,README.md,readme.md}",
+      "!node_modules/**/*.{ts,map}",
+      "!node_modules/.bin/**"
+    ],
+    "asarUnpack": [
+      "**/node_modules/sqlite3/**",
+      "**/node_modules/node-gyp-build/**",
+      "**/node_modules/bindings/**"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "assets/icon.ico"
+    },
+    "portable": {
+      "artifactName": "GoertekVinaCare-SmartMedical-v${version}-portable.exe"
+    }
+  },
+  "dependencies": {
+    "imap-simple": "^5.1.0",
+    "lucide-react": "^0.562.0",
+    "mailparser": "^3.9.1",
+    "nodemailer": "^6.10.0",
+    "react": "^19.2.3",
+    "react-dom": "^19.2.3",
+    "react-router-dom": "^7.13.0",
+    "recharts": "^3.7.0",
+    "sqlite3": "^5.1.7",
+    "xlsx": "0.18.5"
+  },
+  "devDependencies": {
+    "@electron/packager": "^19.0.5",
+    "@types/node": "^22.14.0",
+    "@vitejs/plugin-react": "^5.0.0",
+    "electron": "^40.0.0",
+    "electron-builder": "^25.1.8",
+    "electron-rebuild": "^3.2.9",
+    "typescript": "~5.8.2",
+    "vite": "^6.2.0"
+  }
+}

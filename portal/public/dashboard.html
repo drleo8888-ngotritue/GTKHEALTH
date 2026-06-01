@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Hồ sơ sức khỏe — Cổng Sức Khỏe</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    .badge-I    { background:#d1fae5;color:#065f46; }
+    .badge-II   { background:#dbeafe;color:#1e40af; }
+    .badge-III  { background:#fef9c3;color:#854d0e; }
+    .badge-IV   { background:#fee2e2;color:#991b1b; }
+    .badge-V    { background:#fce7f3;color:#9d174d; }
+  </style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+
+  <!-- Navbar -->
+  <nav class="bg-blue-700 text-white px-4 py-3 flex items-center justify-between shadow">
+    <div class="flex items-center gap-3">
+      <div class="w-8 h-8 bg-white/20 rounded-full flex items-center justify-center">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+            d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"/>
+        </svg>
+      </div>
+      <span class="font-semibold">Cổng Sức Khỏe</span>
+    </div>
+    <div class="flex items-center gap-3">
+      <a href="/chat.html"
+        class="bg-green-500 hover:bg-green-600 text-white text-sm px-3 py-1.5 rounded-lg flex items-center gap-1 transition-colors">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+            d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/>
+        </svg>
+        Hỏi AI
+      </a>
+      <button id="logoutBtn"
+        class="text-white/80 hover:text-white text-sm transition-colors">
+        Đăng xuất
+      </button>
+    </div>
+  </nav>
+
+  <main class="max-w-2xl mx-auto px-4 py-6 space-y-6">
+
+    <!-- Loading -->
+    <div id="loadingState" class="text-center py-16 text-gray-400">
+      <div class="w-10 h-10 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-3"></div>
+      <p>Đang tải hồ sơ sức khỏe...</p>
+    </div>
+
+    <!-- Error -->
+    <div id="errorState" class="hidden text-center py-16 text-red-500">
+      <p id="errorMsg">Không thể tải dữ liệu</p>
+      <button onclick="loadData()" class="mt-3 text-sm text-blue-600 underline">Thử lại</button>
+    </div>
+
+    <!-- Content -->
+    <div id="content" class="hidden space-y-6">
+
+      <!-- KSK Section -->
+      <section>
+        <h2 class="text-base font-bold text-gray-700 mb-3 flex items-center gap-2">
+          <svg class="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
+          </svg>
+          Kết quả khám sức khỏe định kỳ
+        </h2>
+        <div id="checkupList" class="space-y-3"></div>
+        <div id="noCheckups" class="hidden text-gray-400 text-sm italic">Chưa có dữ liệu KSK</div>
+      </section>
+
+      <!-- Encounters Section -->
+      <section>
+        <h2 class="text-base font-bold text-gray-700 mb-3 flex items-center gap-2">
+          <svg class="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+          </svg>
+          Ca khám gần đây (6 tháng)
+        </h2>
+        <div id="encounterList" class="space-y-2"></div>
+        <div id="noEncounters" class="hidden text-gray-400 text-sm italic">Không có ca khám nào trong 6 tháng qua</div>
+      </section>
+
+    </div>
+  </main>
+
+  <script>
+    const token = localStorage.getItem('gvc_portal_token');
+    if (!token) window.location.href = '/';
+
+    document.getElementById('logoutBtn').addEventListener('click', () => {
+      localStorage.removeItem('gvc_portal_token');
+      window.location.href = '/';
+    });
+
+    const HEALTH_CLASS_LABEL = {
+      'I': 'Loại I — Sức khỏe tốt',
+      'II': 'Loại II — Sức khỏe khá',
+      'III': 'Loại III — Sức khỏe trung bình',
+      'IV': 'Loại IV — Sức khỏe yếu',
+      'V': 'Loại V — Sức khỏe rất yếu / mãn tính',
+    };
+
+    function healthBadge(cls) {
+      const label = HEALTH_CLASS_LABEL[cls] || `Loại ${cls}`;
+      return `<span class="badge-${cls} text-xs font-semibold px-2 py-0.5 rounded-full">${label}</span>`;
+    }
+
+    function renderCheckups(checkups) {
+      const container = document.getElementById('checkupList');
+      if (!checkups.length) { document.getElementById('noCheckups').classList.remove('hidden'); return; }
+      container.innerHTML = checkups.map(c => {
+        const exam = c.exam_details || {};
+        const examItems = Object.entries(exam)
+          .filter(([, v]) => v !== null && v !== undefined && v !== '')
+          .map(([k, v]) => `<span class="inline-block bg-gray-100 text-gray-700 text-xs rounded px-2 py-0.5">${k}: <strong>${v}</strong></span>`)
+          .join(' ');
+        return `
+          <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
+            <div class="flex items-center justify-between mb-2">
+              <span class="font-semibold text-gray-800">Năm ${c.year}${c.checkup_month ? ` · Tháng ${c.checkup_month}` : ''}</span>
+              ${c.health_class ? healthBadge(c.health_class) : ''}
+            </div>
+            ${c.health_conclusion ? `<p class="text-sm text-gray-700 mb-1"><span class="font-medium">Kết luận:</span> ${c.health_conclusion}</p>` : ''}
+            ${c.disease_conclusion ? `<p class="text-sm text-gray-600 mb-1"><span class="font-medium">Bệnh:</span> ${c.disease_conclusion}</p>` : ''}
+            ${c.consultation ? `<p class="text-sm text-gray-600 mb-2"><span class="font-medium">Tư vấn:</span> ${c.consultation}</p>` : ''}
+            ${examItems ? `<div class="flex flex-wrap gap-1 mt-2">${examItems}</div>` : ''}
+          </div>`;
+      }).join('');
+    }
+
+    function renderEncounters(encounters) {
+      const container = document.getElementById('encounterList');
+      if (!encounters.length) { document.getElementById('noEncounters').classList.remove('hidden'); return; }
+      const STATUS_MAP = { COMPLETED: '✅ Hoàn thành', REST: '🛏 Nghỉ tại phòng', MONITOR: '👁 Theo dõi', REFERRED: '🚑 Chuyển viện' };
+      container.innerHTML = encounters.map(e => {
+        const meds = Array.isArray(e.prescriptions) ? e.prescriptions.map(p => p.medicineName || p.name || '').filter(Boolean) : [];
+        return `
+          <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
+            <div class="flex items-center justify-between mb-1">
+              <span class="text-sm font-semibold text-gray-700">${e.date || ''}</span>
+              <span class="text-xs text-gray-400">${STATUS_MAP[e.status] || e.status}</span>
+            </div>
+            ${e.symptoms ? `<p class="text-sm text-gray-600">🤒 ${e.symptoms}</p>` : ''}
+            ${e.diagnosis ? `<p class="text-sm text-gray-600">📋 ${e.diagnosis}</p>` : ''}
+            ${meds.length ? `<p class="text-xs text-gray-400 mt-1">💊 ${meds.join(', ')}</p>` : ''}
+          </div>`;
+      }).join('');
+    }
+
+    async function loadData() {
+      document.getElementById('loadingState').classList.remove('hidden');
+      document.getElementById('content').classList.add('hidden');
+      document.getElementById('errorState').classList.add('hidden');
+      try {
+        const res = await fetch('/api/health/summary', {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (res.status === 401) { localStorage.removeItem('gvc_portal_token'); window.location.href = '/'; return; }
+        if (res.status === 403) { window.location.href = '/change-password.html'; return; }
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error);
+        renderCheckups(data.checkups || []);
+        renderEncounters(data.encounters || []);
+        document.getElementById('loadingState').classList.add('hidden');
+        document.getElementById('content').classList.remove('hidden');
+      } catch (err) {
+        document.getElementById('loadingState').classList.add('hidden');
+        document.getElementById('errorMsg').textContent = err.message || 'Không thể tải dữ liệu';
+        document.getElementById('errorState').classList.remove('hidden');
+      }
+    }
+
+    loadData();
+  </script>
+</body>
+</html>

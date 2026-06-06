@@ -309,22 +309,29 @@ export const Clinical: React.FC<ClinicalProps> = ({ stationId, stationName, refr
     setDiseaseGroup(p.diseaseGroup);
     
     const newRx = p.medicines.map(pm => {
-        const normalizedProtocolName = normalizeName(pm.medicineName);
+        // Resolve tên thuốc: ưu tiên medicineName đã lưu, fallback lookup từ raw medicines theo ID
+        let resolvedName = pm.medicineName;
+        if (!resolvedName && pm.medicineId) {
+            const rawMed = medicines.find(m => m.id === pm.medicineId);
+            resolvedName = rawMed?.name;
+        }
 
-        // 1. Tìm chính xác theo tên chuẩn hóa
-        let stockInfo = groupedMedicines.find(g => normalizeName(g.name) === normalizedProtocolName);
-        
-        // 2. Nếu không thấy, tìm tương đối (chứa tên) - Giải quyết vụ "Salonpas" vs "Salonpas Gel"
-        if (!stockInfo) {
-            stockInfo = groupedMedicines.find(g => {
-                const normG = normalizeName(g.name);
-                return normG.includes(normalizedProtocolName) || normalizedProtocolName.includes(normG);
-            });
+        let stockInfo: GroupedMedicineForClinical | undefined;
+        if (resolvedName) {
+            const normalizedProtocolName = normalizeName(resolvedName);
+            // 1. Tìm chính xác theo tên chuẩn hóa
+            stockInfo = groupedMedicines.find(g => normalizeName(g.name) === normalizedProtocolName);
+            // 2. Tìm tương đối — chỉ khi tên không rỗng (tránh match '' với mọi thứ)
+            if (!stockInfo && normalizedProtocolName) {
+                stockInfo = groupedMedicines.find(g => {
+                    const normG = normalizeName(g.name);
+                    return normG.includes(normalizedProtocolName) || normalizedProtocolName.includes(normG);
+                });
+            }
         }
 
         const currentStock = stockInfo ? stockInfo.totalStock : 0;
-        // Nếu tìm thấy thuốc trong kho thì dùng tên trong kho, nếu không dùng tên trong phác đồ
-        const finalName = stockInfo ? stockInfo.name : pm.medicineName; 
+        const finalName = stockInfo ? stockInfo.name : (resolvedName || pm.medicineName || pm.medicineId);
 
         // 🔥 LOGIC AN TOÀN: Không cho kê quá số tồn
         const safeQty = Math.min(pm.quantity, currentStock);

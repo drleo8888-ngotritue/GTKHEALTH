@@ -263,7 +263,7 @@ export const Admin: React.FC<AdminProps> = ({ currentUser }) => {
         name: newProtoName,
         diagnosis: newProtoDiag,
         diseaseGroup: newProtoGroup,
-        medicines: newProtoMeds.map(m => ({ medicineId: m.medicineId, quantity: m.quantity })), 
+        medicines: newProtoMeds.map(m => ({ medicineId: m.medicineId, medicineName: m.medicineName, quantity: m.quantity, unit: m.unit })),
         isApproved: true
     };
     storage.saveProtocol(newP);

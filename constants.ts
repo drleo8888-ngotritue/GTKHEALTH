@@ -12,8 +12,8 @@ export const STAFF_LIST: User[] = [
   { id: '8',  name: 'NGUYỄN THỊ THU THỦY',  mnv: '1347896', role: Role.STAFF,     canPrescribe: true },
   { id: '9',  name: 'NGUYỄN THỊ HUYỀN',     mnv: '1349595', role: Role.STAFF,     canPrescribe: true },
   { id: '10', name: 'NGUYỄN THÚY TRÀ',      mnv: '1439552', role: Role.STAFF,     canPrescribe: true },
-  { id: '11', name: 'VŨ THỊ HÀ',            mnv: '0000011', role: Role.STAFF,     canPrescribe: true },
-  { id: '12', name: 'NGÔ TRÍ TUỆ',          mnv: '0000012', role: Role.MODERATOR, canPrescribe: true },
+  { id: '11', name: 'VŨ THỊ HÀ',            mnv: '0387432', role: Role.STAFF,     canPrescribe: true },
+  { id: '12', name: 'NGÔ TRÍ TUỆ',          mnv: '1638051', role: Role.MODERATOR, canPrescribe: true },
   { id: '13', name: 'HOÀNG THỊ TRÂM',       mnv: '0736486', role: Role.STAFF,     canPrescribe: true },
   { id: '14', name: 'HOÀNG THỊ LÊ',         mnv: '1307865', role: Role.STAFF,     canPrescribe: true },
 ];

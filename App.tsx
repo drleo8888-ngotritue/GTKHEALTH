@@ -11,7 +11,12 @@ import { Admin } from './components/Admin';
 import { StationConfig, StationType, User } from './types';
 import { STAFF_LIST, STATION_PRESETS } from './constants';
 import { storage } from './services/storage';
-import { Settings, Lock, AlertTriangle } from 'lucide-react';
+import { Settings, Lock, AlertTriangle, KeyRound } from 'lucide-react';
+
+const hashPassword = async (password: string): Promise<string> => {
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(password));
+  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
+};
 
 // --- CÁC COMPONENT SETUP, LOGIN, MODAL (GIỮ NGUYÊN NHƯ CŨ) ---
 
@@ -127,13 +132,84 @@ const ResetModal: React.FC<{ onClose: () => void, onConfirm: () => void }> = ({ 
     );
 };
 
+const ChangePasswordModal: React.FC<{ user: User, onClose: () => void }> = ({ user, onClose }) => {
+  const [oldPass, setOldPass] = useState('');
+  const [newPass, setNewPass] = useState('');
+  const [confirmPass, setConfirmPass] = useState('');
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState(false);
+
+  const handleSubmit = async () => {
+    if (!oldPass || !newPass || !confirmPass) { setError('Vui lòng điền đầy đủ / 请填写所有项'); return; }
+    if (newPass.length < 6) { setError('Mật khẩu mới ít nhất 6 ký tự / 新密码至少6位'); return; }
+    if (newPass !== confirmPass) { setError('Xác nhận mật khẩu không khớp / 确认密码不一致'); return; }
+
+    const oldHash = await hashPassword(oldPass);
+    const storedHash = storage.getUserPasswordHash(user.id);
+    const defaultHash = await hashPassword(user.mnv);
+    const isOldValid = storedHash ? oldHash === storedHash : oldHash === defaultHash;
+
+    if (!isOldValid) { setError('Mật khẩu hiện tại sai / 当前密码错误'); setOldPass(''); return; }
+
+    storage.setUserPasswordHash(user.id, await hashPassword(newPass));
+    setSuccess(true);
+    setTimeout(onClose, 1500);
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+      <div className="bg-white p-6 rounded-xl w-96 shadow-2xl">
+        <div className="flex items-center gap-2 mb-5">
+          <KeyRound size={20} className="text-green-600" />
+          <h3 className="font-bold text-gray-800">Đổi mật khẩu / 修改密码</h3>
+        </div>
+        {success ? (
+          <p className="text-green-600 font-bold text-center py-4">✅ Đổi mật khẩu thành công!</p>
+        ) : (
+          <div className="space-y-3">
+            <input type="password" placeholder="Mật khẩu hiện tại / 当前密码" className="w-full border-2 p-3 rounded-lg outline-none focus:border-green-500" value={oldPass} onChange={e => { setOldPass(e.target.value); setError(''); }} />
+            <input type="password" placeholder="Mật khẩu mới / 新密码 (ít nhất 6 ký tự)" className="w-full border-2 p-3 rounded-lg outline-none focus:border-green-500" value={newPass} onChange={e => { setNewPass(e.target.value); setError(''); }} />
+            <input type="password" placeholder="Xác nhận mật khẩu mới / 确认新密码" className="w-full border-2 p-3 rounded-lg outline-none focus:border-green-500" value={confirmPass} onChange={e => { setConfirmPass(e.target.value); setError(''); }} onKeyDown={e => e.key === 'Enter' && handleSubmit()} />
+            {error && <p className="text-red-500 text-sm font-medium">{error}</p>}
+            <div className="flex justify-end gap-2 pt-2">
+              <button onClick={onClose} className="px-4 py-2 text-gray-500 font-bold hover:bg-gray-100 rounded-lg">Hủy / 取消</button>
+              <button onClick={handleSubmit} className="px-4 py-2 bg-green-600 text-white font-bold rounded-lg hover:bg-green-700">Lưu / 保存</button>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
 const LoginScreen: React.FC<{ onLogin: (user: User) => void, onReset: () => void }> = ({ onLogin, onReset }) => {
   const [selectedUserId, setSelectedUserId] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
   const [showResetModal, setShowResetModal] = useState(false);
 
-  const handleLogin = () => {
+  const handleLogin = async () => {
+    if (!selectedUserId || !password) return;
     const user = STAFF_LIST.find(u => u.id === selectedUserId);
-    if (user) onLogin(user);
+    if (!user) return;
+    setLoading(true);
+    setError('');
+    try {
+      const inputHash = await hashPassword(password);
+      const storedHash = storage.getUserPasswordHash(user.id);
+      const isValid = storedHash
+        ? inputHash === storedHash
+        : inputHash === await hashPassword(user.mnv);
+      if (isValid) {
+        onLogin(user);
+      } else {
+        setError('Sai mật khẩu! / 密码错误！');
+        setPassword('');
+      }
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -146,32 +222,49 @@ const LoginScreen: React.FC<{ onLogin: (user: User) => void, onReset: () => void
           <img src="./inapp.png" alt="GoertekVina Smart Medical" className="w-full object-contain mb-3" />
           <p className="text-gray-400 text-sm">Hệ thống Y tế Thông minh</p>
         </div>
-        
+
         <div className="space-y-4 text-left">
-           <label className="block text-sm font-bold text-gray-700">Chọn nhân viên / 选择员工</label>
-           <select 
-             className="w-full p-4 border-2 border-gray-200 rounded-xl bg-gray-50 text-lg outline-none focus:border-medical-green"
-             value={selectedUserId}
-             onChange={e => setSelectedUserId(e.target.value)}
-           >
-             <option value="">-- Danh sách nhân viên / 员工列表 --</option>
-             {STAFF_LIST.map(u => (
-               <option key={u.id} value={u.id}>{u.name} ({u.role})</option>
-             ))}
-           </select>
-           
-           <button 
-             disabled={!selectedUserId}
-             onClick={handleLogin}
-             className="w-full bg-medical-green text-white font-bold text-xl py-4 rounded-xl hover:bg-green-600 disabled:opacity-50 shadow-lg mt-6"
-           >
-             Đăng nhập / 登录 (Login)
-           </button>
+          <div>
+            <label className="block text-sm font-bold text-gray-700 mb-1">Nhân viên / 员工</label>
+            <select
+              className="w-full p-4 border-2 border-gray-200 rounded-xl bg-gray-50 text-lg outline-none focus:border-medical-green"
+              value={selectedUserId}
+              onChange={e => { setSelectedUserId(e.target.value); setError(''); }}
+            >
+              <option value="">-- Chọn nhân viên / 员工列表 --</option>
+              {STAFF_LIST.map(u => (
+                <option key={u.id} value={u.id}>{u.name}</option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-sm font-bold text-gray-700 mb-1">Mật khẩu / 密码</label>
+            <input
+              type="password"
+              autoComplete="current-password"
+              placeholder="Nhập mật khẩu / 输入密码"
+              className={`w-full p-4 border-2 rounded-xl text-lg outline-none focus:border-medical-green ${error ? 'border-red-400 bg-red-50' : 'border-gray-200 bg-gray-50'}`}
+              value={password}
+              onChange={e => { setPassword(e.target.value); setError(''); }}
+              onKeyDown={e => e.key === 'Enter' && handleLogin()}
+            />
+            {error && <p className="text-red-500 text-sm mt-1 font-medium">{error}</p>}
+            <p className="text-xs text-gray-400 mt-1">Mật khẩu mặc định = Mã nhân viên (MNV) / 默认密码 = 员工编号</p>
+          </div>
+
+          <button
+            disabled={!selectedUserId || !password || loading}
+            onClick={handleLogin}
+            className="w-full bg-medical-green text-white font-bold text-xl py-4 rounded-xl hover:bg-green-600 disabled:opacity-50 shadow-lg"
+          >
+            {loading ? 'Đang kiểm tra... / 验证中...' : 'Đăng nhập / 登录'}
+          </button>
         </div>
       </div>
 
       {showResetModal && (
-          <ResetModal 
+          <ResetModal
               onClose={() => setShowResetModal(false)}
               onConfirm={() => {
                   onReset();
@@ -215,6 +308,7 @@ const MainApp = () => {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [activeTab, setActiveTab] = useState('dashboard');
   const [refreshTrigger, setRefreshTrigger] = useState(0);
+  const [showChangePassword, setShowChangePassword] = useState(false);
 
   useEffect(() => {
     const config = storage.getStationConfig();
@@ -279,12 +373,17 @@ const MainApp = () => {
   }
 
   return (
-    <Layout 
-      activeTab={activeTab} 
-      onTabChange={setActiveTab} 
-      currentUser={currentUser} 
+    <>
+    {showChangePassword && currentUser && (
+      <ChangePasswordModal user={currentUser} onClose={() => setShowChangePassword(false)} />
+    )}
+    <Layout
+      activeTab={activeTab}
+      onTabChange={setActiveTab}
+      currentUser={currentUser}
       stationConfig={stationConfig}
       onLogout={() => setCurrentUser(null)}
+      onChangePassword={() => setShowChangePassword(true)}
     >
       <RestMonitor />
 
@@ -322,6 +421,7 @@ const MainApp = () => {
       
       {activeTab === 'admin' && <Admin currentUser={currentUser} />}
     </Layout>
+    </>
   );
 };
 

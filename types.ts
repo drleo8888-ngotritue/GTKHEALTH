@@ -38,6 +38,7 @@ export type MedicineType = 'MEDICINE' | 'SUPPLY';
 export interface User {
   id: string;
   name: string;
+  mnv: string;
   role: Role;
   canPrescribe: boolean;
 }

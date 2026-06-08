@@ -2,18 +2,20 @@ import { User, Role, Medicine, Protocol, Symptom, StationType } from './types';
 
 // --- DANH SÁCH NHÂN SỰ ---
 export const STAFF_LIST: User[] = [
-  { id: '1', name: 'PHAN THỊ LOAN', role: Role.ADMIN, canPrescribe: true },
-  { id: '2', name: 'HÀ VĂN MẠNH', role: Role.STAFF, canPrescribe: true },
-  { id: '3', name: 'DƯƠNG NGÔ HÙNG', role: Role.MODERATOR, canPrescribe: true },
-  { id: '4', name: 'NGUYỄN THỊ NHUNG', role: Role.STAFF, canPrescribe: true },
-  { id: '5', name: 'TRẦN THỊ PHƯƠNG', role: Role.STAFF, canPrescribe: true },
-  { id: '6', name: 'NGUYỄN THỊ HẰNG', role: Role.STAFF, canPrescribe: true },
-  { id: '7', name: 'CHU THỊ DÂNG', role: Role.STAFF, canPrescribe: true },
-  { id: '8', name: 'NGUYỄN THỊ THU THỦY', role: Role.STAFF, canPrescribe: true },
-  { id: '9', name: 'NGUYỄN THỊ HUYỀN', role: Role.STAFF, canPrescribe: true },
-  { id: '10', name: 'NGUYỄN THÚY TRÀ', role: Role.STAFF, canPrescribe: true },
-  { id: '11', name: 'VŨ THỊ HÀ', role: Role.STAFF, canPrescribe: true },
-  { id: '12', name: 'NGÔ TRÍ TUỆ', role: Role.MODERATOR, canPrescribe: true },
+  { id: '1',  name: 'PHAN THỊ LOAN',       mnv: '0949894', role: Role.ADMIN,     canPrescribe: true },
+  { id: '2',  name: 'HÀ VĂN MẠNH',         mnv: '0910619', role: Role.STAFF,     canPrescribe: true },
+  { id: '3',  name: 'DƯƠNG NGÔ HÙNG',       mnv: '1338733', role: Role.MODERATOR, canPrescribe: true },
+  { id: '4',  name: 'NGUYỄN THỊ NHUNG',     mnv: '0710979', role: Role.STAFF,     canPrescribe: true },
+  { id: '5',  name: 'TRẦN THỊ PHƯƠNG',      mnv: '0831488', role: Role.STAFF,     canPrescribe: true },
+  { id: '6',  name: 'NGUYỄN THỊ HẰNG',      mnv: '0781866', role: Role.STAFF,     canPrescribe: true },
+  { id: '7',  name: 'CHU THỊ DÂNG',         mnv: '0390741', role: Role.STAFF,     canPrescribe: true },
+  { id: '8',  name: 'NGUYỄN THỊ THU THỦY',  mnv: '1347896', role: Role.STAFF,     canPrescribe: true },
+  { id: '9',  name: 'NGUYỄN THỊ HUYỀN',     mnv: '1349595', role: Role.STAFF,     canPrescribe: true },
+  { id: '10', name: 'NGUYỄN THÚY TRÀ',      mnv: '1439552', role: Role.STAFF,     canPrescribe: true },
+  { id: '11', name: 'VŨ THỊ HÀ',            mnv: '0000011', role: Role.STAFF,     canPrescribe: true },
+  { id: '12', name: 'NGÔ TRÍ TUỆ',          mnv: '0000012', role: Role.MODERATOR, canPrescribe: true },
+  { id: '13', name: 'HOÀNG THỊ TRÂM',       mnv: '0736486', role: Role.STAFF,     canPrescribe: true },
+  { id: '14', name: 'HOÀNG THỊ LÊ',         mnv: '1307865', role: Role.STAFF,     canPrescribe: true },
 ];
 
 // --- 🔥 CẤU HÌNH MẠNG LƯỚI TRẠM (QUAN TRỌNG) 🔥 ---

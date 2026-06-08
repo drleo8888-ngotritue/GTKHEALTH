@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { User, Role, Protocol, StationType, Medicine, Symptom, Patient, ServerSyncConfig } from '../types';
 import { storage } from '../services/storage';
 import { Check, X, Trash2, Plus, Building2, FileText, Lock, AlertTriangle, Activity, Users, Upload, Search, ClipboardList, RefreshCw, PackageOpen, Tag, ShieldAlert, Server, Wifi, WifiOff, FileSpreadsheet, Pencil } from 'lucide-react';
-import { INITIAL_MEDICINES } from '../constants';
+import { INITIAL_MEDICINES, STAFF_LIST } from '../constants';
 import * as XLSX from 'xlsx';
 import { HealthTimeline } from './HealthTimeline';
 import { ImportFailModal } from './ImportFailModal';
@@ -18,7 +18,7 @@ const AVAILABLE_ICONS = [
 ];
 
 export const Admin: React.FC<AdminProps> = ({ currentUser }) => {
-  const [activeTab, setActiveTab] = useState<'protocols' | 'stations' | 'symptoms' | 'diseaseGroups' | 'infectiousDiseases' | 'employees' | 'update' | 'reset' | 'serverSync' | null>(null);
+  const [activeTab, setActiveTab] = useState<'protocols' | 'stations' | 'symptoms' | 'diseaseGroups' | 'infectiousDiseases' | 'employees' | 'update' | 'reset' | 'serverSync' | 'accounts' | null>(null);
   const [protocols, setProtocols] = useState<Protocol[]>([]);
   const [stations, setStations] = useState<{name: string, type: string}[]>([]);
   
@@ -626,6 +626,7 @@ export const Admin: React.FC<AdminProps> = ({ currentUser }) => {
                     { id: 'stations',      icon: Building2,   label: 'Quản lý Trạm',          sub: '站点管理',    color: 'green',  disabled: !isStationAdmin, lock: true },
                     { id: 'update',        icon: PackageOpen, label: 'Cập nhật ứng dụng',     sub: '应用更新',    color: 'green',  disabled: false },
                     { id: 'serverSync',    icon: Server,      label: 'Đồng bộ Server',        sub: '服务器同步',  color: 'blue',   disabled: false },
+                    { id: 'accounts',      icon: Lock,        label: 'Tài khoản nhân viên',   sub: '员工账户',    color: 'blue',   disabled: !isStationAdmin, lock: true },
                     { id: 'reset',         icon: ShieldAlert, label: 'Reset dữ liệu',         sub: '重置数据',    color: 'red',    disabled: false },
                 ].map(item => {
                     const Icon = item.icon;
@@ -1432,6 +1433,52 @@ export const Admin: React.FC<AdminProps> = ({ currentUser }) => {
                             <li>Dữ liệu chưa sync sẽ được tự động gửi lại theo chu kỳ đã cài</li>
                             <li>Medicine chỉ đồng bộ 1 chiều: Spoke → Server (không chỉnh sửa từ server)</li>
                         </ul>
+                    </div>
+                </div>
+            )}
+
+            {activeTab === 'accounts' && (
+                <div className="overflow-y-auto">
+                    <div className="flex items-center gap-3 mb-6">
+                        <Lock size={24} className="text-blue-600"/>
+                        <div>
+                            <h3 className="text-xl font-bold text-gray-800">Tài khoản nhân viên y tế / 员工账户</h3>
+                            <p className="text-sm text-gray-500">Mật khẩu mặc định = MNV. Reset để khôi phục mặc định. / 默认密码 = 员工编号</p>
+                        </div>
+                    </div>
+                    <div className="space-y-2">
+                        {STAFF_LIST.map(u => {
+                            const hasCustom = !!storage.getUserPasswordHash(u.id);
+                            return (
+                                <div key={u.id} className="flex items-center justify-between bg-gray-50 rounded-xl px-4 py-3 border border-gray-100">
+                                    <div className="flex items-center gap-3">
+                                        <div className="w-9 h-9 rounded-full bg-green-100 text-green-700 flex items-center justify-center font-bold text-sm">{u.name.charAt(0)}</div>
+                                        <div>
+                                            <p className="font-semibold text-gray-800 text-sm">{u.name}</p>
+                                            <p className="text-xs text-gray-500">MNV: {u.mnv} · {u.role}</p>
+                                        </div>
+                                    </div>
+                                    <div className="flex items-center gap-3">
+                                        <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${hasCustom ? 'bg-green-100 text-green-700' : 'bg-gray-200 text-gray-500'}`}>
+                                            {hasCustom ? '🔒 Đã đổi MK' : '🔑 Mặc định'}
+                                        </span>
+                                        {hasCustom && (
+                                            <button
+                                                onClick={() => {
+                                                    if (window.confirm(`Reset mật khẩu của "${u.name}" về MNV (${u.mnv})?`)) {
+                                                        storage.resetUserPassword(u.id);
+                                                        loadData();
+                                                    }
+                                                }}
+                                                className="text-xs px-3 py-1.5 bg-amber-50 text-amber-700 border border-amber-200 rounded-lg hover:bg-amber-100 font-medium transition"
+                                            >
+                                                Reset về MNV
+                                            </button>
+                                        )}
+                                    </div>
+                                </div>
+                            );
+                        })}
                     </div>
                 </div>
             )}

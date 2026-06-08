@@ -10,6 +10,7 @@ import {
   Monitor,
   ExternalLink,
   LayoutDashboard,
+  KeyRound,
 } from 'lucide-react';
 import { User, StationConfig } from '../types';
 import { SyncControl } from './SyncControl';
@@ -22,6 +23,7 @@ interface LayoutProps {
   currentUser: User;
   stationConfig: StationConfig;
   onLogout: () => void;
+  onChangePassword: () => void;
 }
 
 // Component item đơn giản cho Sidebar
@@ -40,8 +42,8 @@ const SidebarItem = ({ id, label, icon: Icon, active, onClick }: any) => (
   </button>
 );
 
-export const Layout: React.FC<LayoutProps> = ({ 
-  children, activeTab, onTabChange, currentUser, stationConfig, onLogout 
+export const Layout: React.FC<LayoutProps> = ({
+  children, activeTab, onTabChange, currentUser, stationConfig, onLogout, onChangePassword
 }) => {
 
   // --- HÀM MỞ CỬA SỔ KIOSK RIÊNG ---
@@ -121,9 +123,14 @@ export const Layout: React.FC<LayoutProps> = ({
               <p className="text-xs text-gray-500 uppercase">{currentUser.role}</p>
             </div>
           </div>
-          <button onClick={onLogout} className="w-full flex items-center justify-center p-2 text-sm font-medium text-red-600 hover:text-red-700 bg-red-50 hover:bg-red-100 rounded-lg transition-colors">
-            <LogOut size={16} className="mr-2" /> Đăng xuất / 登出
-          </button>
+          <div className="flex gap-2">
+            <button onClick={onChangePassword} className="flex-1 flex items-center justify-center p-2 text-sm font-medium text-gray-500 hover:text-green-700 bg-gray-50 hover:bg-green-50 rounded-lg transition-colors" title="Đổi mật khẩu / 修改密码">
+              <KeyRound size={15} className="mr-1" /> Đổi MK
+            </button>
+            <button onClick={onLogout} className="flex-1 flex items-center justify-center p-2 text-sm font-medium text-red-600 hover:text-red-700 bg-red-50 hover:bg-red-100 rounded-lg transition-colors">
+              <LogOut size={15} className="mr-1" /> Đăng xuất
+            </button>
+          </div>
         </div>
       </div>
 

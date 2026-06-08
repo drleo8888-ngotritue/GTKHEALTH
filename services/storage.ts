@@ -11,10 +11,11 @@ const DB_KEYS = {
   KNOWN_STATIONS: 'gvc_known_stations',
   SYMPTOMS: 'gvc_symptoms',
   DISEASE_GROUPS: 'gvc_disease_groups',
-  PATIENTS: 'gvc_patients', // Employee Database
+  PATIENTS: 'gvc_patients',
   SERVER_SYNC_CONFIG: 'gvc_server_sync_config',
-  MEDICINE_ORDER: 'gvc_medicine_order', // Thứ tự cột thuốc trong báo cáo Excel
+  MEDICINE_ORDER: 'gvc_medicine_order',
   INFECTIOUS_DISEASES: 'gvc_infectious_diseases',
+  USER_PASSWORDS: 'gvc_user_passwords',
 };
 
 // Mock Initial Employees (IDs start with 1)
@@ -95,6 +96,24 @@ class StorageService {
   // --- Users (System Staff) ---
   getUsers(): User[] {
     return JSON.parse(localStorage.getItem(DB_KEYS.USERS) || '[]');
+  }
+
+  // --- Password Management ---
+  getUserPasswordHash(userId: string): string | null {
+    const stored = JSON.parse(localStorage.getItem(DB_KEYS.USER_PASSWORDS) || '{}');
+    return stored[userId] || null;
+  }
+
+  setUserPasswordHash(userId: string, hash: string): void {
+    const stored = JSON.parse(localStorage.getItem(DB_KEYS.USER_PASSWORDS) || '{}');
+    stored[userId] = hash;
+    localStorage.setItem(DB_KEYS.USER_PASSWORDS, JSON.stringify(stored));
+  }
+
+  resetUserPassword(userId: string): void {
+    const stored = JSON.parse(localStorage.getItem(DB_KEYS.USER_PASSWORDS) || '{}');
+    delete stored[userId];
+    localStorage.setItem(DB_KEYS.USER_PASSWORDS, JSON.stringify(stored));
   }
 
   // --- Patient/Employee Database ---

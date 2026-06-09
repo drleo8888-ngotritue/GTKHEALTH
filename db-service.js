@@ -327,9 +327,9 @@ module.exports = {
 
       logDetails.push(`Trạng thái -> ${data.status}`);
 
-      // Bước 3: Cập nhật bảng encounters
+      // Bước 3: Cập nhật bảng encounters (reset is_synced_server=0 để đảm bảo re-push bản mới nhất)
       const isRestStatus = data.status === 'REST_30' || data.status === 'MONITOR';
-      const sql = `UPDATE encounters SET diagnosis = ?, disease_group = ?, status = ?, end_time = ?, prescriptions = ?, symptoms = ?, rest_start_time = ?, had_rest_at_room = CASE WHEN ? = 1 THEN 1 ELSE had_rest_at_room END WHERE id = ?`;
+      const sql = `UPDATE encounters SET diagnosis = ?, disease_group = ?, status = ?, end_time = ?, prescriptions = ?, symptoms = ?, rest_start_time = ?, had_rest_at_room = CASE WHEN ? = 1 THEN 1 ELSE had_rest_at_room END, is_synced_server = 0 WHERE id = ?`;
       await runQuery(sql, [
         data.diagnosis, data.diseaseGroup, data.status, Date.now(),
         JSON.stringify(totalPrescriptions), JSON.stringify(data.symptoms || []),

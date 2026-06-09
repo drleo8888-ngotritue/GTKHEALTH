@@ -313,8 +313,8 @@ ipcMain.handle('db:update-encounter', async (event, data) => {
     console.log('📝 [UPDATE] Cập nhật ID:', data.id);
     try {
         const result = await dbService.updateEncounter(data);
-        // Chỉ push lên server khi ca khám kết thúc (không push mỗi lần click)
-        const finalStatuses = ['COMPLETED', 'REFERRED', 'REST_30', 'MONITOR'];
+        // Push lên server khi ca khám kết thúc hoặc cập nhật trạng thái quan trọng
+        const finalStatuses = ['COMPLETED', 'COMPLETED_WORK', 'COMPLETED_TRANSFER', 'REFERRED', 'REST_30', 'MONITOR'];
         if (finalStatuses.includes((data.status || '').toUpperCase())) {
           doServerSync().catch(() => {});
         }
@@ -826,9 +826,31 @@ ipcMain.handle('hub:get-spoke-stock', async (event, stationName) => {
 ipcMain.handle('hub:query-server-encounters', async (event, { from, to, stationId } = {}) => {
   try {
     console.log(`🔍 [HUB] Query encounters từ server: from=${from ? new Date(from).toLocaleDateString('vi-VN') : 'đầu'} to=${to ? new Date(to).toLocaleDateString('vi-VN') : 'cuối'}`);
-    const data = await syncServer.pullHubEncounters(from, to, stationId);
-    console.log(`✅ [HUB] Server trả ${(data||[]).length} ca khám`);
-    return { success: true, data: data || [] };
+    const raw = await syncServer.pullHubEncounters(from, to, stationId);
+    // Map snake_case (server DB) → camelCase (UI) để filter stationName/startTime hoạt động đúng
+    const data = (raw || []).map(r => ({
+      id:               r.id,
+      patientId:        r.patient_id,
+      patientName:      r.patient_name,
+      department:       r.department,
+      stationId:        r.station_id,
+      stationName:      r.station_name,
+      symptoms:         r.symptoms || [],
+      status:           r.status,
+      startTime:        r.start_time,
+      endTime:          r.end_time,
+      restStartTime:    r.rest_start_time,
+      diagnosis:        r.diagnosis,
+      diseaseGroup:     r.disease_group,
+      instruction:      r.instruction,
+      prescriptions:    r.prescriptions || [],
+      notes:            r.notes,
+      hadRestAtRoom:    r.had_rest_at_room,
+      isSupplementary:  r.is_supplementary,
+      prescriptionDate: r.prescription_date,
+    }));
+    console.log(`✅ [HUB] Server trả ${data.length} ca khám`);
+    return { success: true, data };
   } catch (err) {
     console.error('❌ Lỗi query encounters từ server:', err.message);
     return { success: false, data: [], message: err.message };

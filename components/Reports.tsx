@@ -203,7 +203,7 @@ export const Reports: React.FC<ReportsProps> = ({ stationConfig, currentUser, re
         setTimeline([]); 
     }
 
-    const isOpen = !((e as any)._fromServer) && (e.status === EncounterStatus.REST_30 || e.status === EncounterStatus.MONITOR || e.status === EncounterStatus.IN_PROGRESS);
+    const isOpen = e.stationName === stationConfig.name && (e.status === EncounterStatus.REST_30 || e.status === EncounterStatus.MONITOR || e.status === EncounterStatus.IN_PROGRESS);
     setIsEditing(isOpen);
     
     setEditPrescriptions([]);
@@ -780,7 +780,7 @@ export const Reports: React.FC<ReportsProps> = ({ stationConfig, currentUser, re
                          </td>
                          <td className="py-1.5 px-2 text-gray-400 whitespace-nowrap">{e.stationName}</td>
                          <td className="py-1.5 px-2" onClick={ev => ev.stopPropagation()}>
-                           {!(e as any)._fromServer && (
+                           {e.stationName === stationConfig.name && (
                              <button onClick={(ev) => handleDeleteEncounter(e.id, e.patientName, ev)} title="Xóa"
                                className="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded text-red-400 hover:text-red-600 hover:bg-red-100">
                                <Trash2 size={13}/>

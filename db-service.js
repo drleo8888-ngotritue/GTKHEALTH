@@ -796,15 +796,18 @@ module.exports = {
   // === SERVER SYNC HELPERS ===
 
   getUnsyncedEncounters: async () => {
+    // Đảm bảo cột tồn tại trước khi query (phòng DB cũ chưa migrate)
+    try { await runQuery(`ALTER TABLE encounters ADD COLUMN is_synced_server INTEGER DEFAULT 0`); } catch (_) {}
     const rows = await getQuery(
       `SELECT e.*, GROUP_CONCAT(ce.id||'|'||ce.action_type||'|'||ce.actor_name||'|'||ce.details||'|'||ce.timestamp, ';;') as events_raw
        FROM encounters e
        LEFT JOIN clinical_events ce ON ce.encounter_id = e.id
-       WHERE e.is_synced_server = 0
+       WHERE e.is_synced_server = 0 OR e.is_synced_server IS NULL
        GROUP BY e.id
        ORDER BY e.start_time ASC
        LIMIT 100`
     );
+    console.log(`🔍 [SYNC] getUnsyncedEncounters: tìm thấy ${rows.length} ca chưa sync`);
     return rows.map(r => {
       const clinical_events = r.events_raw
         ? r.events_raw.split(';;').map(s => {
@@ -823,8 +826,9 @@ module.exports = {
   },
 
   getUnsyncedInventoryLogs: async () => {
+    try { await runQuery(`ALTER TABLE inventory_logs ADD COLUMN is_synced_server INTEGER DEFAULT 0`); } catch (_) {}
     const rows = await getQuery(
-      `SELECT * FROM inventory_logs WHERE is_synced_server = 0 ORDER BY timestamp ASC LIMIT 100`
+      `SELECT * FROM inventory_logs WHERE is_synced_server = 0 OR is_synced_server IS NULL ORDER BY timestamp ASC LIMIT 100`
     );
     return rows.map(r => ({ ...r, items: JSON.parse(r.items || '[]') }));
   },

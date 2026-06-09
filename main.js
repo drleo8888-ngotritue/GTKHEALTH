@@ -177,9 +177,15 @@ async function doServerSync() {
       }
     }
 
-    // HUB: kéo dữ liệu từ server về local
-    if (_stationType === 'HUB') {
-      await doHubPull();
+    // SPOKE: kéo phác đồ mới nhất từ server
+    if (_stationType !== 'HUB') {
+      const protocols = await syncServer.pullProtocols();
+      if (Array.isArray(protocols) && protocols.length > 0) {
+        BrowserWindow.getAllWindows().forEach(win => {
+          if (!win.isDestroyed()) win.webContents.send('spoke:protocols-update', protocols);
+        });
+        console.log(`✅ [SYNC] Spoke nhận ${protocols.length} phác đồ từ server`);
+      }
     }
 
     // SPOKE: kiểm tra phiếu điều chuyển thuốc đang chờ từ Hub
@@ -813,6 +819,42 @@ ipcMain.handle('hub:get-spoke-stock', async (event, stationName) => {
   } catch (err) {
     console.error('❌ Lỗi lấy tồn kho Spoke:', err.message);
     return { success: false, data: [], message: err.message };
+  }
+});
+
+// === HUB: Query ca khám từ server theo khoảng thời gian (không lưu local) ===
+ipcMain.handle('hub:query-server-encounters', async (event, { from, to, stationId } = {}) => {
+  try {
+    console.log(`🔍 [HUB] Query encounters từ server: from=${from ? new Date(from).toLocaleDateString('vi-VN') : 'đầu'} to=${to ? new Date(to).toLocaleDateString('vi-VN') : 'cuối'}`);
+    const data = await syncServer.pullHubEncounters(from, to, stationId);
+    console.log(`✅ [HUB] Server trả ${(data||[]).length} ca khám`);
+    return { success: true, data: data || [] };
+  } catch (err) {
+    console.error('❌ Lỗi query encounters từ server:', err.message);
+    return { success: false, data: [], message: err.message };
+  }
+});
+
+// === HUB: Đẩy phác đồ lên server để Spoke tự đồng bộ ===
+ipcMain.handle('hub:push-protocols', async (event, protocols) => {
+  try {
+    if (!Array.isArray(protocols) || protocols.length === 0) {
+      return { success: false, message: 'Không có phác đồ nào để đồng bộ' };
+    }
+    const cfg = syncServer.getSyncConfig();
+    if (!cfg.enabled || !cfg.serverUrl) {
+      return { success: false, message: 'Chưa cấu hình kết nối máy chủ' };
+    }
+    console.log(`⬆️ [HUB] Đang đẩy ${protocols.length} phác đồ lên server...`);
+    const res = await syncServer.pushProtocols(protocols);
+    if (res?.success) {
+      console.log(`✅ [HUB] Đã đồng bộ ${protocols.length} phác đồ lên server`);
+      return { success: true, count: protocols.length };
+    }
+    return { success: false, message: res?.message || 'Server không phản hồi' };
+  } catch (err) {
+    console.error('❌ Lỗi đẩy phác đồ:', err.message);
+    return { success: false, message: err.message };
   }
 });
 

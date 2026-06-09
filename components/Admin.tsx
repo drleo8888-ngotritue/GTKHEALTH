@@ -190,6 +190,20 @@ export const Admin: React.FC<AdminProps> = ({ currentUser }) => {
     });
   };
 
+  const stationConfig = storage.getStationConfig();
+  const isHub = stationConfig?.type === StationType.HUB;
+
+  // --- Protocol Sync (Hub only) ---
+  const [protocolSyncStatus, setProtocolSyncStatus] = useState<string>('');
+  const handlePushProtocols = async () => {
+    if (!window.electron?.pushProtocolsToServer) return;
+    setProtocolSyncStatus('loading');
+    const list = storage.getProtocols();
+    const res = await window.electron.pushProtocolsToServer(list);
+    setProtocolSyncStatus(res.success ? 'ok' : 'error');
+    setTimeout(() => setProtocolSyncStatus(''), 3000);
+  };
+
   // --- Protocol Logic ---
   const handleApproveProtocol = (p: Protocol) => {
     const updated = { ...p, isApproved: true };
@@ -680,9 +694,18 @@ export const Admin: React.FC<AdminProps> = ({ currentUser }) => {
                 <>
                     <div className="flex justify-between items-center mb-6">
                         <h3 className="text-xl font-bold text-gray-800">Danh sách Phác đồ / 协议列表</h3>
-                        <button onClick={() => { setEditingProtoId(null); setNewProtoName(''); setNewProtoDiag(''); setNewProtoGroup(''); setNewProtoMeds([]); setShowProtoForm(true); }} className="bg-blue-600 text-white px-4 py-2 rounded-lg font-bold flex items-center hover:bg-blue-700">
-                            <Plus size={18} className="mr-2"/> Tạo mới / 新建
-                        </button>
+                        <div className="flex items-center gap-2">
+                            {isHub && (
+                                <button onClick={handlePushProtocols} disabled={protocolSyncStatus === 'loading'}
+                                    className={`px-4 py-2 rounded-lg font-bold flex items-center text-sm transition-colors ${protocolSyncStatus === 'ok' ? 'bg-green-100 text-green-700' : protocolSyncStatus === 'error' ? 'bg-red-100 text-red-700' : 'bg-indigo-600 text-white hover:bg-indigo-700'} disabled:opacity-60`}>
+                                    <Server size={16} className="mr-2"/>
+                                    {protocolSyncStatus === 'loading' ? 'Đang đồng bộ...' : protocolSyncStatus === 'ok' ? '✓ Đã đồng bộ' : protocolSyncStatus === 'error' ? '✗ Lỗi' : 'Đồng bộ lên Server'}
+                                </button>
+                            )}
+                            <button onClick={() => { setEditingProtoId(null); setNewProtoName(''); setNewProtoDiag(''); setNewProtoGroup(''); setNewProtoMeds([]); setShowProtoForm(true); }} className="bg-blue-600 text-white px-4 py-2 rounded-lg font-bold flex items-center hover:bg-blue-700">
+                                <Plus size={18} className="mr-2"/> Tạo mới / 新建
+                            </button>
+                        </div>
                     </div>
 
                     {showProtoForm && (

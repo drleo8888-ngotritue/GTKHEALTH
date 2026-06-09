@@ -38,4 +38,23 @@ router.post('/transfers/:id/confirm', async (req, res) => {
   }
 });
 
+// GET /api/spoke/protocols — Spoke kéo toàn bộ phác đồ từ server
+router.get('/protocols', async (req, res) => {
+  try {
+    const rows = await db.all(`SELECT * FROM protocols ORDER BY name ASC`);
+    res.json({
+      success: true,
+      data: rows.map(r => ({
+        id: r.id, name: r.name, diagnosis: r.diagnosis,
+        diseaseGroup: r.disease_group,
+        medicines: JSON.parse(r.medicines || '[]'),
+        isApproved: r.is_approved === 1,
+        updated_at: r.updated_at,
+      })),
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
 module.exports = router;

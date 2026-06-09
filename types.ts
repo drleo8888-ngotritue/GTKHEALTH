@@ -250,6 +250,10 @@ declare global {
       removeServerSyncTimeListener?: () => void;
       createServerTransfer: (data: { targetStation: string; medicines: any[]; note?: string; createdBy?: string }) => Promise<{ success: boolean; id?: string; message?: string }>;
       getHubSpokeStock: (stationName: string) => Promise<{ success: boolean; data: any[]; message?: string }>;
+      queryServerEncounters: (params: { from?: number; to?: number; stationId?: string }) => Promise<{ success: boolean; data: any[]; message?: string }>;
+      pushProtocolsToServer: (protocols: any[]) => Promise<{ success: boolean; count?: number; message?: string }>;
+      onSpokeProtocolsUpdate: (callback: (protocols: any[]) => void) => void;
+      removeSpokeProtocolsListener?: () => void;
 
       // Excel Import
       importEncountersFromExcel: (encounters: any[], deductInventory: boolean) => Promise<{ success: boolean; count: number; message?: string }>;

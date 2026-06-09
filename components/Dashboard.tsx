@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { User, StationConfig } from '../types';
+import { User, StationConfig, StationType } from '../types';
 import { Users, ClipboardList, Package, AlertTriangle, Activity, Clock, Calendar, Stethoscope, Pill, BarChart3, UserPlus, X, TrendingUp, ChevronLeft, ChevronRight } from 'lucide-react';
 import { ComposedChart, Bar, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, ReferenceLine, Cell, CartesianGrid } from 'recharts';
 
@@ -259,8 +259,16 @@ export const Dashboard: React.FC<DashboardProps> = ({ currentUser, stationConfig
         let patientsToday = 0;
         let prescriptionsToday = 0;
         try {
-          const encounters = await (window as any).electron.getAllEncounters();
-          setAllEncounters(encounters || []);
+          let encounters: any[] = [];
+          if (stationConfig.type === StationType.HUB && (window as any).electron.queryServerEncounters) {
+            // Hub đọc thẳng từ server — 90 ngày gần nhất (đủ cho trend chart + KPI hôm nay)
+            const from = Date.now() - 90 * 24 * 60 * 60 * 1000;
+            const res = await (window as any).electron.queryServerEncounters({ from });
+            encounters = res?.data || [];
+          } else {
+            encounters = await (window as any).electron.getAllEncounters();
+          }
+          setAllEncounters(encounters);
 
           if (encounters) {
             // Dùng cùng logic toShiftDay với trend chart để KPI luôn khớp

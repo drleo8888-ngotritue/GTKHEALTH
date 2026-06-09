@@ -145,6 +145,16 @@ async function init() {
     confirmed_at INTEGER
   )`);
 
+  await run(`CREATE TABLE IF NOT EXISTS protocols (
+    id TEXT PRIMARY KEY,
+    name TEXT,
+    diagnosis TEXT,
+    disease_group TEXT,
+    medicines TEXT,
+    is_approved INTEGER DEFAULT 1,
+    updated_at INTEGER
+  )`);
+
   // Index để query nhanh
   await run(`CREATE INDEX IF NOT EXISTS idx_encounters_station   ON encounters(station_id)`);
   await run(`CREATE INDEX IF NOT EXISTS idx_encounters_time      ON encounters(start_time)`);

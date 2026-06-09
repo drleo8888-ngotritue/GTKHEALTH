@@ -158,6 +158,18 @@ async function confirmTransfer(transferId) {
   return request('POST', `/api/spoke/transfers/${transferId}/confirm`, {});
 }
 
+// Hub đẩy phác đồ lên server
+async function pushProtocols(protocols) {
+  if (!protocols.length) return null;
+  return request('POST', '/api/hub/protocols', { protocols });
+}
+
+// Spoke kéo phác đồ từ server
+async function pullProtocols() {
+  const res = await request('GET', '/api/spoke/protocols');
+  return res?.success ? (res.data || []) : null;
+}
+
 module.exports = {
   setSyncConfig,
   setStationConfig,
@@ -177,4 +189,6 @@ module.exports = {
   getHubTransfers,
   pullPendingTransfers,
   confirmTransfer,
+  pushProtocols,
+  pullProtocols,
 };

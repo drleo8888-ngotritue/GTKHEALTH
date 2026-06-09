@@ -104,12 +104,25 @@ export const Reports: React.FC<ReportsProps> = ({ stationConfig, currentUser, re
     setKnownStations(storage.getKnownStations());
   }, [refreshTrigger]);
 
+  // Hub: reload khi đổi khoảng thời gian
+  useEffect(() => {
+    if (stationConfig.type === StationType.HUB) loadData();
+  }, [startDate, endDate, startTime, endTime]);
+
   const loadData = async () => {
     setIsLoading(true);
     if (window.electron) {
         try {
-            const data = await window.electron.getAllEncounters();
-            setEncounters(data);
+            if (stationConfig.type === StationType.HUB) {
+                // Hub đọc thẳng từ server theo khoảng thời gian đang xem
+                const fromTs = new Date(`${startDate}T${startTime}`).getTime();
+                const toTs   = new Date(`${endDate}T${endTime}`).getTime();
+                const res = await (window as any).electron.queryServerEncounters({ from: fromTs, to: toTs });
+                setEncounters(res?.data || []);
+            } else {
+                const data = await window.electron.getAllEncounters();
+                setEncounters(data);
+            }
             const medList = await window.electron.getInventory(stationConfig.name);
             setMedicines(medList || []);
         } catch (e) {

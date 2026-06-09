@@ -323,6 +323,15 @@ const MainApp = () => {
             setRefreshTrigger(prev => prev + 1);
         });
 
+        // Spoke: tự động nhận phác đồ mới từ Hub qua server
+        if (window.electron.onSpokeProtocolsUpdate) {
+            window.electron.onSpokeProtocolsUpdate((protocols: any[]) => {
+                protocols.forEach(p => storage.saveProtocol(p));
+                console.log(`✅ [APP] Đã cập nhật ${protocols.length} phác đồ từ server`);
+                setRefreshTrigger(prev => prev + 1);
+            });
+        }
+
         // Đẩy sync config và station config xuống main process khi khởi động
         const syncCfg = storage.getServerSyncConfig();
         window.electron.updateServerSyncConfig(syncCfg).catch(() => {});

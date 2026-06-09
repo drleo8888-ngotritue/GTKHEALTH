@@ -9,13 +9,12 @@ router.get('/encounters', async (req, res) => {
     const params = [];
     let where = 'WHERE 1=1';
 
-    // Dùng received_at để đảm bảo Hub không bỏ sót Spoke push muộn
-    if (from)       { where += ' AND received_at >= ?'; params.push(Number(from)); }
-    if (to)         { where += ' AND received_at <= ?'; params.push(Number(to)); }
-    if (station_id) { where += ' AND station_id = ?';   params.push(station_id); }
+    if (from)       { where += ' AND start_time >= ?'; params.push(Number(from)); }
+    if (to)         { where += ' AND start_time <= ?'; params.push(Number(to)); }
+    if (station_id) { where += ' AND station_id = ?';  params.push(station_id); }
 
     const rows = await db.all(
-      `SELECT * FROM encounters ${where} ORDER BY received_at ASC LIMIT 5000`,
+      `SELECT * FROM encounters ${where} ORDER BY start_time DESC LIMIT 5000`,
       params
     );
 
@@ -203,6 +202,29 @@ router.get('/transfers', async (req, res) => {
       success: true,
       data: rows.map(r => ({ ...r, medicines: JSON.parse(r.medicines || '[]') })),
     });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// POST /api/hub/protocols — Hub đồng bộ phác đồ lên server (bulk upsert)
+router.post('/protocols', async (req, res) => {
+  try {
+    const { protocols } = req.body;
+    if (!Array.isArray(protocols) || protocols.length === 0) {
+      return res.status(400).json({ success: false, message: 'Thiếu danh sách phác đồ' });
+    }
+    const now = Date.now();
+    for (const p of protocols) {
+      await db.run(
+        `INSERT OR REPLACE INTO protocols (id, name, diagnosis, disease_group, medicines, is_approved, updated_at)
+         VALUES (?,?,?,?,?,?,?)`,
+        [p.id, p.name, p.diagnosis || '', p.diseaseGroup || p.disease_group || '',
+         JSON.stringify(p.medicines || []), p.isApproved ? 1 : 0, now]
+      );
+    }
+    console.log(`✅ Hub đồng bộ ${protocols.length} phác đồ lên server`);
+    res.json({ success: true, count: protocols.length });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }

@@ -14,8 +14,6 @@ export const STAFF_LIST: User[] = [
   { id: '10', name: 'NGUYỄN THÚY TRÀ',      mnv: '1439552', role: Role.STAFF,     canPrescribe: true },
   { id: '11', name: 'VŨ THỊ HÀ',            mnv: '0387432', role: Role.STAFF,     canPrescribe: true },
   { id: '12', name: 'NGÔ TRÍ TUỆ',          mnv: '1638051', role: Role.MODERATOR, canPrescribe: true },
-  { id: '13', name: 'HOÀNG THỊ TRÂM',       mnv: '0736486', role: Role.STAFF,     canPrescribe: true },
-  { id: '14', name: 'HOÀNG THỊ LÊ',         mnv: '1307865', role: Role.STAFF,     canPrescribe: true },
 ];
 
 // --- 🔥 CẤU HÌNH MẠNG LƯỚI TRẠM (QUAN TRỌNG) 🔥 ---

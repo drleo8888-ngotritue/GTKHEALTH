@@ -112,10 +112,24 @@ async function init() {
   await run(`CREATE TABLE IF NOT EXISTS protocols (
     id TEXT PRIMARY KEY,
     name TEXT,
+    diagnosis TEXT DEFAULT '',
+    disease_group TEXT DEFAULT '',
+    medicines TEXT DEFAULT '[]',
+    is_approved INTEGER DEFAULT 1,
+    updated_at INTEGER,
     symptoms TEXT,
     suggested_medicines TEXT,
     note TEXT
   )`);
+  // Migrate DB cũ: thêm cột mới nếu chưa có (ALTER TABLE IF NOT EXISTS không tồn tại trong SQLite)
+  const protoMigrations = [
+    `ALTER TABLE protocols ADD COLUMN diagnosis TEXT DEFAULT ''`,
+    `ALTER TABLE protocols ADD COLUMN disease_group TEXT DEFAULT ''`,
+    `ALTER TABLE protocols ADD COLUMN medicines TEXT DEFAULT '[]'`,
+    `ALTER TABLE protocols ADD COLUMN is_approved INTEGER DEFAULT 1`,
+    `ALTER TABLE protocols ADD COLUMN updated_at INTEGER`,
+  ];
+  for (const sql of protoMigrations) { try { await run(sql); } catch (_) {} }
 
   await run(`CREATE TABLE IF NOT EXISTS symptoms (
     id TEXT PRIMARY KEY,
@@ -145,15 +159,6 @@ async function init() {
     confirmed_at INTEGER
   )`);
 
-  await run(`CREATE TABLE IF NOT EXISTS protocols (
-    id TEXT PRIMARY KEY,
-    name TEXT,
-    diagnosis TEXT,
-    disease_group TEXT,
-    medicines TEXT,
-    is_approved INTEGER DEFAULT 1,
-    updated_at INTEGER
-  )`);
 
   // Index để query nhanh
   await run(`CREATE INDEX IF NOT EXISTS idx_encounters_station   ON encounters(station_id)`);

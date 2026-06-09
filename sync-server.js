@@ -10,6 +10,7 @@ let _stationConfig = { id: 'UNKNOWN', name: 'UNKNOWN' };
 function setSyncConfig(config)    { _syncConfig    = config; }
 function setStationConfig(config) { _stationConfig = config; }
 function getSyncConfig()          { return _syncConfig; }
+function getStationName()         { return _stationConfig.name; }
 
 // ---------------------------------------------------------------------------
 // Hàm gọi HTTP thô — timeout 10s, không throw, trả về null khi lỗi
@@ -95,13 +96,85 @@ async function pullEmployees() {
   return res?.success ? (res.data || []) : null;
 }
 
+// Spoke push báo cáo thuốc tháng lên server
+async function pushMedicineReport({ station, periodType, periodMonth, periodYear, items }) {
+  return request('POST', '/api/sync/medicine-report', {
+    station, period_type: periodType, period_month: periodMonth, period_year: periodYear, data: items,
+  });
+}
+
+// Hub kéo trạng thái báo cáo (trạm nào đã nộp)
+async function pullHubReportStatus(periodMonth, periodYear) {
+  const res = await request('GET', `/api/hub/medicine-reports?period_month=${periodMonth}&period_year=${periodYear}`);
+  return res?.success ? (res.data || []) : null;
+}
+
+// Hub kéo dữ liệu báo cáo đầy đủ
+async function pullHubReportData(periodMonth, periodYear) {
+  const res = await request('GET', `/api/hub/medicine-reports/data?period_month=${periodMonth}&period_year=${periodYear}`);
+  return res?.success ? (res.data || []) : null;
+}
+
+// Hub kéo danh sách ca khám từ server
+async function pullHubEncounters(from, to, stationId) {
+  const params = new URLSearchParams();
+  if (from) params.set('from', String(from));
+  if (to)   params.set('to', String(to));
+  if (stationId) params.set('station_id', stationId);
+  const res = await request('GET', `/api/hub/encounters?${params}`);
+  return res?.success ? (res.data || []) : null;
+}
+
+// Hub kéo tồn kho tổng hợp từ server
+async function pullHubStock(stationId) {
+  const qs = stationId ? `?station_id=${encodeURIComponent(stationId)}` : '';
+  const res = await request('GET', `/api/hub/inventory/stock${qs}`);
+  return res?.success ? (res.data || []) : null;
+}
+
+// Hub tạo phiếu điều chuyển thuốc
+async function createTransfer({ id, sourceStation, targetStation, createdBy, medicines, note }) {
+  return request('POST', '/api/hub/transfers', {
+    id, source_station: sourceStation, target_station: targetStation,
+    created_by: createdBy, medicines, note,
+  });
+}
+
+// Hub xem danh sách phiếu đã tạo
+async function getHubTransfers(sourceStation) {
+  const qs = sourceStation ? `?source_station=${encodeURIComponent(sourceStation)}` : '';
+  const res = await request('GET', `/api/hub/transfers${qs}`);
+  return res?.success ? (res.data || []) : null;
+}
+
+// Spoke hỏi server có phiếu điều chuyển nào chờ không
+async function pullPendingTransfers(stationName) {
+  const res = await request('GET', `/api/spoke/transfers/pending?station_name=${encodeURIComponent(stationName)}`);
+  return res?.success ? (res.data || []) : null;
+}
+
+// Spoke xác nhận đã nhận phiếu
+async function confirmTransfer(transferId) {
+  return request('POST', `/api/spoke/transfers/${transferId}/confirm`, {});
+}
+
 module.exports = {
   setSyncConfig,
   setStationConfig,
   getSyncConfig,
+  getStationName,
   ping,
   pushEncounters,
   pushInventoryLogs,
   pushMedicinesStock,
   pullEmployees,
+  pushMedicineReport,
+  pullHubReportStatus,
+  pullHubReportData,
+  pullHubEncounters,
+  pullHubStock,
+  createTransfer,
+  getHubTransfers,
+  pullPendingTransfers,
+  confirmTransfer,
 };

@@ -327,7 +327,7 @@ const MainApp = () => {
         const syncCfg = storage.getServerSyncConfig();
         window.electron.updateServerSyncConfig(syncCfg).catch(() => {});
         if (config) {
-          window.electron.updateServerStationConfig({ id: config.id, name: config.name }).catch(() => {});
+          window.electron.updateServerStationConfig({ id: config.id, name: config.name, type: config.type }).catch(() => {});
         }
 
         // Pull danh sách nhân viên mới nhất từ server (nếu sync đang bật)

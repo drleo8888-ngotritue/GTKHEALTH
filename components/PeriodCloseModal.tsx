@@ -316,8 +316,11 @@ export const PeriodCloseModal: React.FC<PeriodCloseModalProps> = (props) => {
           periodYear,
           items,
         });
-        if (result.success) setReportSent(true);
-        else alert(`Lỗi: ${result.message}`);
+        if (result.success) {
+          setReportSent(true);
+        } else {
+          alert(`❌ ${result.message}`);
+        }
       }
     } finally {
       setIsSendingReport(false);

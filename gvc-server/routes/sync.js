@@ -118,6 +118,27 @@ router.post('/medicines/stock', async (req, res) => {
   res.json({ success: true, message: `Đã cập nhật tồn kho trạm ${station_name}` });
 });
 
+// POST /api/sync/medicine-report — Spoke push báo cáo thuốc tháng lên server
+router.post('/medicine-report', async (req, res) => {
+  const { station, period_type, period_month, period_year, data } = req.body;
+  if (!station || !period_month || !period_year) {
+    return res.status(400).json({ success: false, message: 'Thiếu thông tin kỳ báo cáo' });
+  }
+  try {
+    const id = `${station}_${period_type || 'MONTHLY'}_${period_year}_${period_month}`;
+    await db.run(
+      `INSERT OR REPLACE INTO spoke_medicine_reports
+         (id, station, period_type, period_month, period_year, data, submitted_at)
+       VALUES (?,?,?,?,?,?,?)`,
+      [id, station, period_type || 'MONTHLY', period_month, period_year,
+       JSON.stringify(data || []), Date.now()]
+    );
+    res.json({ success: true, message: `Đã nhận báo cáo T${period_month}/${period_year} từ ${station}` });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
 // GET /api/sync/employees — tất cả trạm kéo về
 router.get('/employees', async (req, res) => {
   try {

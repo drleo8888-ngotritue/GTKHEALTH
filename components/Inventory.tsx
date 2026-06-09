@@ -75,18 +75,14 @@ export const Inventory: React.FC<InventoryProps> = ({ stationConfig, refreshTrig
   const [showImportFail, setShowImportFail] = useState(false);
   const [showDisposeModal, setShowDisposeModal] = useState(false); 
   const [showTransferModal, setShowTransferModal] = useState(false);
-  const [showVerifyModal, setShowVerifyModal] = useState(false);
+  // showVerifyModal removed — file-based transfer replaced by server sync
 
   // --- STATE FORM & LOGIC ---
   const [newItem, setNewItem] = useState<Partial<Medicine>>({ type: 'MEDICINE', stock: 0, group: '' });
   const [transferCart, setTransferCart] = useState<{med: Medicine, qty: number}[]>([]); 
   const [targetStation, setTargetStation] = useState<string>(''); 
   const [disposeReason, setDisposeReason] = useState<string>('EXPIRED'); 
-  const [incomingTransfer, setIncomingTransfer] = useState<any>(null); 
-  const [verifiedItems, setVerifiedItems] = useState<any[]>([]); 
   const [isSetupMode, setIsSetupMode] = useState(false);
-  
-  const syncFileInputRef = useRef<HTMLInputElement>(null);
   const excelInputRef = useRef<HTMLInputElement>(null);
   const [showMedicineReport, setShowMedicineReport] = useState(false);
   const [showPeriodClose, setShowPeriodClose] = useState(false);
@@ -406,26 +402,32 @@ export const Inventory: React.FC<InventoryProps> = ({ stationConfig, refreshTrig
       setIsLoading(true);
       try {
           if ((window as any).electron) {
+              const medicines = transferCart.map(i => ({
+                  name: i.med.name, qty: i.qty, unit: i.med.unit,
+                  batchNumber: i.med.batchNumber, group: i.med.group,
+              }));
+              const res = await (window as any).electron.createServerTransfer({
+                  targetStation, medicines, note: `Điều chuyển từ ${stationConfig.name}`,
+                  createdBy: currentUser?.name,
+              });
+              if (!res?.success) {
+                  alert(`❌ ${res?.message || 'Không thể tạo phiếu điều chuyển.'}`);
+                  return;
+              }
+              // Trừ kho local và ghi log TRANSFER_OUT
               for (const item of transferCart) {
                   await dataService.importMedicine({ ...item.med, stock: -item.qty, skipLog: true }, stationConfig.name);
               }
-              const logId = crypto.randomUUID();
-              const transferId = crypto.randomUUID();
-              const transferData = { type: 'TRANSFER', id: transferId, source: stationConfig.name, target: targetStation, date: Date.now(), items: transferCart.map(i => ({...i.med, stock: i.qty})) };
-              const blob = new Blob([JSON.stringify(transferData)], { type: "application/json" });
-              const link = document.createElement("a"); link.href = URL.createObjectURL(blob); link.download = `DIEU_CHUYEN_${targetStation}.dat`; 
-              document.body.appendChild(link); link.click();
-              
               await dataService.createInventoryLog({
-                  id: logId, type: 'TRANSFER_OUT', source: stationConfig.name, target: targetStation, timestamp: Date.now(),
-                  note: `Xuất điều chuyển: ${targetStation}`,
+                  id: crypto.randomUUID(), type: 'TRANSFER_OUT', source: stationConfig.name, target: targetStation,
+                  timestamp: Date.now(), note: `Xuất điều chuyển → ${targetStation}`,
                   items: transferCart.map(i => ({ name: i.med.name, qty: i.qty, batch: i.med.batchNumber })),
                   actorName: currentUser?.name, actorRole: currentUser?.role,
               });
-              alert(`✅ Đã xuất điều chuyển! File .dat đã được tải xuống.`);
+              alert(`✅ Đã tạo phiếu điều chuyển đến ${targetStation}.\nTrạm ${targetStation} sẽ nhận tự động qua đồng bộ.`);
               setShowTransferModal(false); setTransferCart([]); setTargetStation(''); await loadData();
           }
-      } catch(e) { console.error(e); }
+      } catch(e: any) { alert(`❌ ${e.message}`); }
       finally { setIsLoading(false); }
   };
 
@@ -571,77 +573,6 @@ export const Inventory: React.FC<InventoryProps> = ({ stationConfig, refreshTrig
       reader.readAsBinaryString(file);
   };
 
-  // Nhận file điều chuyển từ E4 (chỉ dùng cho Spoke)
-  const handleSyncFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
-     const file = event.target.files?.[0]; if (!file) return;
-     const reader = new FileReader();
-     reader.onload = async (e) => {
-         const content = e.target?.result as string;
-         try {
-             const data = JSON.parse(content);
-             if (data.type === 'TRANSFER') {
-                 const targetName = (data.target || '').trim().toUpperCase();
-                 const myName = (stationConfig.name || '').trim().toUpperCase();
-                 const sourceName = (data.source || '').trim().toUpperCase();
-
-                 if (targetName !== myName) {
-                     alert(`⛔ SAI ĐỊA CHỈ!\nGói này gửi cho trạm [${data.target}].\nBạn đang ở trạm [${stationConfig.name}].`);
-                     if(syncFileInputRef.current) syncFileInputRef.current.value = '';
-                     return;
-                 }
-                 if (sourceName === myName) {
-                     alert(`⛔ LỖI LOGIC!\nBạn không thể tự nhập gói hàng do chính mình (${stationConfig.name}) xuất ra.`);
-                     if(syncFileInputRef.current) syncFileInputRef.current.value = '';
-                     return;
-                 }
-                 if (data.id && (window as any).electron) {
-                     const already = await (window as any).electron.checkFileImported(data.id);
-                     if (already) {
-                         alert(`⚠️ FILE ĐÃ NHẬP!\nPhiếu điều chuyển này đã được nhập vào kho trước đó.\nKhông thể nhập lại.`);
-                         if(syncFileInputRef.current) syncFileInputRef.current.value = '';
-                         return;
-                     }
-                 }
-                 setVerifiedItems((data.items || []).map((i: any) => ({ ...i, realStock: i.stock })));
-                 setIncomingTransfer(data);
-                 setShowVerifyModal(true);
-             } else {
-                 alert('❌ File không đúng định dạng điều chuyển.');
-             }
-         } catch { alert('❌ File không hợp lệ.'); }
-         if (syncFileInputRef.current) syncFileInputRef.current.value = '';
-     };
-     reader.readAsText(file);
-  };
-
-  const confirmImportTransfer = async () => {
-      if (!(window as any).electron) return;
-      if (isLoading) return;
-      
-      setIsLoading(true);
-      try {
-          let count = 0;
-          const logItems: any[] = [];
-          for (const item of verifiedItems) {
-              if (item.realStock > 0) {
-                  const newId = crypto.randomUUID();
-                  await dataService.importMedicine({ id: newId, name: item.name, group: item.group || 'Khác', unit: item.unit, stock: item.realStock, batchNumber: item.batchNumber, expiryDate: item.expiryDate, mfgDate: item.mfgDate, type: item.type || 'MEDICINE', skipLog: true }, stationConfig.name); 
-                  count++;
-                  logItems.push({ name: item.name, qty: item.realStock, batch: item.batchNumber, medId: newId });
-              }
-          }
-          if (incomingTransfer && count > 0) {
-              // Ghi log TRANSFER_IN tại trạm nhận
-              await dataService.createInventoryLog({ id: crypto.randomUUID(), type: 'TRANSFER_IN', source: incomingTransfer.source || 'Unknown', target: stationConfig.name, timestamp: Date.now(), note: `Nhập kho từ phiếu điều chuyển`, items: logItems, actorName: currentUser?.name, actorRole: currentUser?.role });
-              // Đánh dấu file đã nhập để chống nhập lại
-              if (incomingTransfer.id) {
-                  await (window as any).electron.markFileImported({ fileId: incomingTransfer.id, type: 'TRANSFER', source: incomingTransfer.source, target: stationConfig.name, importedAt: Date.now() });
-              }
-          }
-          alert(`✅ Đã nhập kho ${count} mặt hàng!`); setShowVerifyModal(false); setVerifiedItems([]); setIncomingTransfer(null); await loadData();
-      } catch(e) { console.error(e); }
-      finally { setIsLoading(false); }
-  };
 
   const buildSheetData = (data: MasterItem[], label: string) => {
     const rows: any[] = [];
@@ -669,7 +600,6 @@ export const Inventory: React.FC<InventoryProps> = ({ stationConfig, refreshTrig
   // --- RENDER UI (FULL WIDTH & GOERTEK COLORS) ---
   return (
     <div className="h-full flex flex-col relative font-sans text-gray-800">
-       <input type="file" ref={syncFileInputRef} onChange={handleSyncFileUpload} className="hidden" accept=".dat,.json,.txt"/>
        <input type="file" ref={excelInputRef} onChange={handleExcelImport} className="hidden" accept=".xlsx,.xls"/>
 
        {/* Báo cáo sử dụng thuốc/vật tư */}
@@ -729,7 +659,6 @@ export const Inventory: React.FC<InventoryProps> = ({ stationConfig, refreshTrig
 
                 {/* 3. Thao tác (Phải) */}
                 <div className="lg:col-span-5 flex justify-end gap-2">
-                    {stationConfig.type !== StationType.HUB && <button disabled={isLoading} onClick={() => syncFileInputRef.current?.click()} className="flex items-center px-3 py-2 bg-purple-600 text-white rounded-lg font-bold text-sm hover:bg-purple-700 shadow-md disabled:opacity-50 transition-transform active:scale-95"><Download size={16} className="mr-2 shrink-0"/><span>Nhận điều chuyển<span className="block text-[9px] font-normal opacity-80 leading-tight">接收调拨</span></span></button>}
                     {stationConfig.type === StationType.HUB && <button disabled={isLoading} onClick={() => setShowTransferModal(true)} className="flex items-center px-3 py-2 bg-orange-500 text-white rounded-lg font-bold text-sm hover:bg-orange-600 shadow-md disabled:opacity-50 transition-transform active:scale-95"><Truck size={16} className="mr-2 shrink-0"/><span>Xuất trạm<span className="block text-[9px] font-normal opacity-80 leading-tight">调出站点</span></span></button>}
                     <button disabled={isLoading} onClick={() => setShowDisposeModal(true)} className="flex items-center px-3 py-2 bg-red-600 text-white rounded-lg font-bold text-sm hover:bg-red-700 shadow-md disabled:opacity-50 transition-transform active:scale-95"><Trash2 size={16} className="mr-2 shrink-0"/><span>Hủy/Khác<span className="block text-[9px] font-normal opacity-80 leading-tight">销毁/其他</span></span></button>
                     <button disabled={isLoading} onClick={() => setShowImportModal(true)} className="flex items-center px-4 py-2 bg-green-600 text-white rounded-lg font-bold text-sm hover:bg-green-700 shadow-md disabled:opacity-50 transition-transform active:scale-95"><Plus size={16} className="mr-2 shrink-0"/><span>Nhập kho<span className="block text-[9px] font-normal opacity-80 leading-tight">入库</span></span></button>
@@ -931,7 +860,7 @@ export const Inventory: React.FC<InventoryProps> = ({ stationConfig, refreshTrig
           </div>
        </div>
 
-       {showVerifyModal && (
+       {false && (
            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fade-in">
                <div className="bg-white rounded-xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden">
                    <div className="p-5 bg-purple-700 text-white font-bold flex justify-between items-center rounded-t-xl">

@@ -78,4 +78,7 @@ contextBridge.exposeInMainWorld('electron', {
   // Nhận thời gian sync server thành công
   onServerSyncTime: (callback) => ipcRenderer.on('server-sync:last-time', (_event, time) => callback(time)),
   removeServerSyncTimeListener: () => ipcRenderer.removeAllListeners('server-sync:last-time'),
+
+  // --- ĐIỀU CHUYỂN THUỐC QUA SERVER ---
+  createServerTransfer: (data) => ipcRenderer.invoke('hub:create-transfer', data),
 });

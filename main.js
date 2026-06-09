@@ -95,6 +95,47 @@ async function doServerSync() {
       }
     }
 
+    // SPOKE: kiểm tra phiếu điều chuyển thuốc đang chờ từ Hub
+    if (_stationType !== 'HUB') {
+      const pendingTransfers = await syncServer.pullPendingTransfers(syncServer.getStationName());
+      if (Array.isArray(pendingTransfers) && pendingTransfers.length > 0) {
+        let applied = 0;
+        for (const transfer of pendingTransfers) {
+          try {
+            const logItems = [];
+            for (const med of transfer.medicines) {
+              await dbService.importMedicine(
+                { name: med.name, stock: med.qty, batchNumber: med.batchNumber || '', unit: med.unit || '', type: 'MEDICINE', group: med.group || '' },
+                transfer.target_station
+              );
+              logItems.push({ name: med.name, qty: med.qty, batch: med.batchNumber || '' });
+            }
+            await dbService.createInventoryLog({
+              id: require('crypto').randomUUID(),
+              type: 'TRANSFER_IN',
+              source: transfer.source_station,
+              target: transfer.target_station,
+              timestamp: Date.now(),
+              note: `Nhận điều chuyển từ ${transfer.source_station} (tự động)`,
+              items: logItems,
+              actorName: 'SERVER_SYNC',
+              actorRole: 'SYSTEM',
+            });
+            await syncServer.confirmTransfer(transfer.id);
+            applied++;
+          } catch (e) {
+            console.warn(`⚠️ Lỗi áp dụng phiếu điều chuyển ${transfer.id}:`, e.message);
+          }
+        }
+        if (applied > 0) {
+          BrowserWindow.getAllWindows().forEach(win => {
+            if (!win.isDestroyed()) win.webContents.send('data:update');
+          });
+          console.log(`✅ Đã nhận ${applied} phiếu điều chuyển thuốc từ server.`);
+        }
+      }
+    }
+
     // Emit thời gian sync thành công lên renderer
     const timeStr = new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
     BrowserWindow.getAllWindows().forEach(win => {
@@ -472,7 +513,25 @@ ipcMain.handle('db:create-supplementary-encounter', async (event, data) => {
 });
 
 ipcMain.handle('db:close-period', async (event, data) => {
-  try { return await dbService.closePeriod(data); }
+  try {
+    const result = await dbService.closePeriod(data);
+    // Auto-push tồn kho lên server sau khi chốt kỳ
+    const cfg = syncServer.getSyncConfig();
+    if (cfg.enabled && cfg.serverUrl) {
+      try {
+        const medicines = await dbService.getInventory(data.station);
+        if (medicines.length > 0) {
+          await syncServer.pushMedicinesStock(medicines.map(m => ({
+            id: m.id, name: m.name, group_name: m.group, unit: m.unit,
+            stock: m.stock, batch_number: m.batchNumber, expiry_date: m.expiryDate, type: m.type,
+          })));
+        }
+      } catch (e) {
+        console.warn('⚠️ Push stock sau chốt kỳ thất bại (sẽ thử lại):', e.message);
+      }
+    }
+    return result;
+  }
   catch (err) { console.error('❌ Lỗi chốt kỳ:', err); return false; }
 });
 
@@ -481,34 +540,22 @@ ipcMain.handle('db:get-closed-periods', async (event, station) => {
   catch (err) { console.error('❌ Lỗi lấy danh sách chốt kỳ:', err); return []; }
 });
 
-// === SPOKE: Xuất báo cáo thuốc tháng → file DAT gửi về E4 ===
+// === SPOKE: Gửi báo cáo thuốc tháng lên server ===
 ipcMain.handle('sync:export-medicine-report', async (event, { stationName, periodType, periodMonth, periodYear, items }) => {
   try {
-    const syncService = require('./sync-service');
-    const fileId = require('crypto').randomUUID();
-    const payload = {
-      fileId,
-      version: '1.0',
-      type: 'MEDICINE_REPORT',
-      exportedAt: Date.now(),
-      sourceStation: stationName,
-      periodType,
-      periodMonth,
-      periodYear,
-      data: items,
-    };
-    const encrypted = syncService.encryptPayload(payload);
-    const monthStr = String(periodMonth).padStart(2, '0');
-    const { canceled, filePath } = await dialog.showSaveDialog({
-      title: 'Lưu báo cáo thuốc tháng',
-      defaultPath: `BC_THUOC_${stationName}_T${monthStr}_${periodYear}.dat`,
-      filters: [{ name: 'Sync Data', extensions: ['dat'] }],
+    const cfg = syncServer.getSyncConfig();
+    if (!cfg.enabled || !cfg.serverUrl) {
+      return { success: false, message: 'Chưa cấu hình kết nối máy chủ. Vào Cấu hình → Máy chủ để thiết lập.' };
+    }
+    const res = await syncServer.pushMedicineReport({
+      station: stationName, periodType, periodMonth, periodYear, items,
     });
-    if (canceled || !filePath) return { success: false, message: 'Đã hủy.' };
-    fs.writeFileSync(filePath, encrypted, 'utf8');
-    return { success: true, message: `Đã xuất báo cáo thuốc T${periodMonth}/${periodYear}.` };
+    if (!res?.success) {
+      return { success: false, message: res?.message || 'Máy chủ không phản hồi. Kiểm tra kết nối.' };
+    }
+    return { success: true, message: `Đã gửi báo cáo T${periodMonth}/${periodYear} lên máy chủ.` };
   } catch (err) {
-    console.error('❌ Lỗi xuất báo cáo thuốc:', err);
+    console.error('❌ Lỗi gửi báo cáo thuốc:', err);
     return { success: false, message: err.message };
   }
 });
@@ -557,9 +604,20 @@ ipcMain.handle('sync:import-medicine-report', async () => {
   }
 });
 
-// === HUB: Lấy trạng thái báo cáo thuốc các Spoke ===
+// === HUB: Lấy trạng thái báo cáo thuốc các Spoke (từ server) ===
 ipcMain.handle('db:get-spoke-report-status', async (event, { periodMonth, periodYear }) => {
-  try { return await dbService.getSpokeReportStatus(periodMonth, periodYear); }
+  try {
+    const cfg = syncServer.getSyncConfig();
+    if (cfg.enabled && cfg.serverUrl) {
+      const data = await syncServer.pullHubReportStatus(periodMonth, periodYear);
+      if (data !== null) {
+        // Chuẩn hóa về shape { station, importedAt } giống local DB
+        return data.map(r => ({ station: r.station, importedAt: r.submitted_at }));
+      }
+    }
+    // Fallback: local DB (dữ liệu cũ từ .dat)
+    return await dbService.getSpokeReportStatus(periodMonth, periodYear);
+  }
   catch (err) { console.error('❌ Lỗi lấy trạng thái spoke:', err); return []; }
 });
 
@@ -618,10 +676,44 @@ ipcMain.handle('sync:smart-import', async () => {
   }
 });
 
-// === HUB: Lấy dữ liệu báo cáo thuốc từ các Spoke (cho báo cáo tổng hợp) ===
+// === HUB: Lấy dữ liệu báo cáo thuốc từ các Spoke (từ server) ===
 ipcMain.handle('db:get-spoke-report-data', async (event, { periodMonth, periodYear }) => {
-  try { return await dbService.getSpokeReportData(periodMonth, periodYear); }
+  try {
+    const cfg = syncServer.getSyncConfig();
+    if (cfg.enabled && cfg.serverUrl) {
+      const data = await syncServer.pullHubReportData(periodMonth, periodYear);
+      if (data !== null) return data;
+    }
+    // Fallback: local DB
+    return await dbService.getSpokeReportData(periodMonth, periodYear);
+  }
   catch (err) { console.error('❌ Lỗi lấy spoke report data:', err); return []; }
+});
+
+// === HUB: Tạo phiếu điều chuyển thuốc qua server ===
+ipcMain.handle('hub:create-transfer', async (event, { targetStation, medicines, note, createdBy }) => {
+  try {
+    const cfg = syncServer.getSyncConfig();
+    if (!cfg.enabled || !cfg.serverUrl) {
+      return { success: false, message: 'Chưa cấu hình kết nối máy chủ.' };
+    }
+    const transferId = require('crypto').randomUUID();
+    const res = await syncServer.createTransfer({
+      id: transferId,
+      sourceStation: syncServer.getStationName(),
+      targetStation,
+      createdBy,
+      medicines,
+      note,
+    });
+    if (!res?.success) {
+      return { success: false, message: res?.message || 'Không thể tạo phiếu điều chuyển.' };
+    }
+    return { success: true, id: transferId };
+  } catch (err) {
+    console.error('❌ Lỗi tạo phiếu điều chuyển:', err);
+    return { success: false, message: err.message };
+  }
 });
 
 // === N0. RESET DỮ LIỆU ===
@@ -765,9 +857,11 @@ ipcMain.handle('server-sync:update-config', async (event, config) => {
   return { success: true };
 });
 
-// Renderer gọi khi Admin lưu station config — để main biết stationId/stationName
-ipcMain.handle('server-sync:update-station', async (event, { id, name }) => {
+// Renderer gọi khi Admin lưu station config — để main biết stationId/stationName/type
+let _stationType = 'SPOKE';
+ipcMain.handle('server-sync:update-station', async (event, { id, name, type }) => {
   syncServer.setStationConfig({ id, name });
+  if (type) _stationType = type;
   return { success: true };
 });
 

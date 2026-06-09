@@ -123,6 +123,28 @@ async function init() {
     group_name TEXT
   )`);
 
+  await run(`CREATE TABLE IF NOT EXISTS spoke_medicine_reports (
+    id TEXT PRIMARY KEY,
+    station TEXT NOT NULL,
+    period_type TEXT NOT NULL,
+    period_month INTEGER NOT NULL,
+    period_year INTEGER NOT NULL,
+    data TEXT,
+    submitted_at INTEGER
+  )`);
+
+  await run(`CREATE TABLE IF NOT EXISTS pending_transfers (
+    id TEXT PRIMARY KEY,
+    source_station TEXT NOT NULL,
+    target_station TEXT NOT NULL,
+    created_at INTEGER NOT NULL,
+    created_by TEXT,
+    status TEXT DEFAULT 'PENDING',
+    medicines TEXT,
+    note TEXT,
+    confirmed_at INTEGER
+  )`);
+
   // Index để query nhanh
   await run(`CREATE INDEX IF NOT EXISTS idx_encounters_station   ON encounters(station_id)`);
   await run(`CREATE INDEX IF NOT EXISTS idx_encounters_time      ON encounters(start_time)`);
@@ -130,6 +152,8 @@ async function init() {
   await run(`CREATE INDEX IF NOT EXISTS idx_inv_logs_time        ON inventory_logs(timestamp)`);
   await run(`CREATE INDEX IF NOT EXISTS idx_stock_station        ON medicines_stock(station_id)`);
   await run(`CREATE INDEX IF NOT EXISTS idx_events_encounter     ON clinical_events(encounter_id)`);
+  await run(`CREATE INDEX IF NOT EXISTS idx_med_reports_period   ON spoke_medicine_reports(period_month, period_year)`);
+  await run(`CREATE INDEX IF NOT EXISTS idx_transfers_target     ON pending_transfers(target_station, status)`);
 
   console.log('✅ Server DB đã sẵn sàng tại:', path.resolve(DB_PATH));
 }

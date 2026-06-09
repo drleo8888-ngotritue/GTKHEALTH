@@ -17,6 +17,7 @@ app.use('/api/ping', require('./routes/ping'));
 // Tất cả routes còn lại yêu cầu API Key
 app.use('/api/sync',  auth, require('./routes/sync'));
 app.use('/api/hub',   auth, require('./routes/hub'));
+app.use('/api/spoke', auth, require('./routes/spoke'));
 app.use('/api/admin', auth, require('./routes/admin'));
 
 // 404

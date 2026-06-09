@@ -122,4 +122,89 @@ router.get('/summary', async (req, res) => {
   }
 });
 
+// GET /api/hub/medicine-reports?period_month=&period_year= — Hub kiểm tra trạm nào đã nộp
+router.get('/medicine-reports', async (req, res) => {
+  try {
+    const { period_month, period_year } = req.query;
+    if (!period_month || !period_year) {
+      return res.status(400).json({ success: false, message: 'Thiếu period_month hoặc period_year' });
+    }
+    const rows = await db.all(
+      `SELECT station, submitted_at FROM spoke_medicine_reports
+       WHERE period_month = ? AND period_year = ? AND period_type = 'MONTHLY'`,
+      [Number(period_month), Number(period_year)]
+    );
+    res.json({ success: true, data: rows });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// GET /api/hub/medicine-reports/data?period_month=&period_year= — Hub lấy dữ liệu đầy đủ
+router.get('/medicine-reports/data', async (req, res) => {
+  try {
+    const { period_month, period_year } = req.query;
+    if (!period_month || !period_year) {
+      return res.status(400).json({ success: false, message: 'Thiếu period_month hoặc period_year' });
+    }
+    const rows = await db.all(
+      `SELECT station, data, submitted_at FROM spoke_medicine_reports
+       WHERE period_month = ? AND period_year = ? AND period_type = 'MONTHLY'
+       ORDER BY station`,
+      [Number(period_month), Number(period_year)]
+    );
+    res.json({
+      success: true,
+      data: rows.map(r => ({
+        station: r.station,
+        importedAt: r.submitted_at,
+        items: JSON.parse(r.data || '[]'),
+      })),
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// POST /api/hub/transfers — Hub tạo phiếu điều chuyển thuốc
+router.post('/transfers', async (req, res) => {
+  try {
+    const { id, source_station, target_station, created_by, medicines, note } = req.body;
+    if (!target_station || !Array.isArray(medicines) || medicines.length === 0) {
+      return res.status(400).json({ success: false, message: 'Thiếu trạm nhận hoặc danh sách thuốc' });
+    }
+    const transferId = id || require('crypto').randomUUID();
+    await db.run(
+      `INSERT INTO pending_transfers
+         (id, source_station, target_station, created_at, created_by, status, medicines, note)
+       VALUES (?,?,?,?,?,?,?,?)`,
+      [transferId, source_station, target_station, Date.now(),
+       created_by || null, 'PENDING', JSON.stringify(medicines), note || null]
+    );
+    res.json({ success: true, id: transferId, message: `Đã tạo phiếu điều chuyển đến ${target_station}` });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// GET /api/hub/transfers?source_station= — Hub xem danh sách phiếu đã tạo
+router.get('/transfers', async (req, res) => {
+  try {
+    const { source_station } = req.query;
+    let sql = `SELECT * FROM pending_transfers ORDER BY created_at DESC LIMIT 100`;
+    const params = [];
+    if (source_station) {
+      sql = `SELECT * FROM pending_transfers WHERE source_station = ? ORDER BY created_at DESC LIMIT 100`;
+      params.push(source_station);
+    }
+    const rows = await db.all(sql, params);
+    res.json({
+      success: true,
+      data: rows.map(r => ({ ...r, medicines: JSON.parse(r.medicines || '[]') })),
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
 module.exports = router;

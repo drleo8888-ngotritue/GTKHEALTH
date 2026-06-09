@@ -260,6 +260,18 @@ app.whenReady().then(async () => {
 
     await dbService.initDB(dbPath);
     console.log('✅ Database đã sẵn sàng.');
+
+    // Khôi phục sync config từ file trước khi renderer load — tránh race condition
+    const savedState = loadSyncState();
+    if (savedState.syncConfig) {
+      syncServer.setSyncConfig(savedState.syncConfig);
+      startSyncRetryTimer(savedState.syncConfig.retryIntervalMinutes || 5);
+      console.log(`🔧 [INIT] Đã khôi phục sync config: enabled=${savedState.syncConfig.enabled}, url=${savedState.syncConfig.serverUrl}`);
+    }
+    if (savedState.stationConfig) {
+      syncServer.setStationConfig(savedState.stationConfig);
+      console.log(`🔧 [INIT] Đã khôi phục station config: ${savedState.stationConfig.name}`);
+    }
   } catch (err) {
     console.error('❌ Lỗi khởi tạo Database:', err);
   }
@@ -289,7 +301,6 @@ ipcMain.handle('db:create-encounter', async (event, data) => {
     BrowserWindow.getAllWindows().forEach(win => {
         win.webContents.send('data:update');
     });
-    doServerSync().catch(() => {}); // fire-and-forget, không block UI
     return { success: true, id: id };
   } catch (err) {
     console.error('❌ Lỗi lưu DB:', err);
@@ -1017,6 +1028,7 @@ ipcMain.handle('app:get-version', () => {
 // Renderer gọi khi Admin lưu cấu hình — main giữ config trong memory
 ipcMain.handle('server-sync:update-config', async (event, config) => {
   syncServer.setSyncConfig(config);
+  saveSyncState({ syncConfig: config });
   startSyncRetryTimer(config.retryIntervalMinutes || 5);
   return { success: true };
 });
@@ -1028,6 +1040,7 @@ console.log(`🏥 [INIT] Station type từ file: ${_stationType}`);
 
 ipcMain.handle('server-sync:update-station', async (event, { id, name, type }) => {
   syncServer.setStationConfig({ id, name });
+  saveSyncState({ stationConfig: { id, name } });
   if (type) {
     _stationType = type;
     saveSyncState({ stationType: type });

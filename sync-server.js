@@ -15,8 +15,13 @@ function getStationName()         { return _stationConfig.name; }
 // ---------------------------------------------------------------------------
 // Hàm gọi HTTP thô — timeout 10s, không throw, trả về null khi lỗi
 // ---------------------------------------------------------------------------
-function request(method, urlPath, body = null) {
-  if (!_syncConfig.enabled || !_syncConfig.serverUrl) return Promise.resolve(null);
+// readOnly=true: chỉ cần serverUrl, bỏ qua flag enabled (dùng cho Hub đọc hiển thị)
+function request(method, urlPath, body = null, readOnly = false) {
+  if (readOnly) {
+    if (!_syncConfig.serverUrl) return Promise.resolve(null);
+  } else {
+    if (!_syncConfig.enabled || !_syncConfig.serverUrl) return Promise.resolve(null);
+  }
 
   let url;
   try { url = new URL(urlPath, _syncConfig.serverUrl); }
@@ -121,14 +126,14 @@ async function pullHubEncounters(from, to, stationId) {
   if (from) params.set('from', String(from));
   if (to)   params.set('to', String(to));
   if (stationId) params.set('station_id', stationId);
-  const res = await request('GET', `/api/hub/encounters?${params}`);
+  const res = await request('GET', `/api/hub/encounters?${params}`, null, true);
   return res?.success ? (res.data || []) : null;
 }
 
 // Hub kéo tồn kho tổng hợp từ server
 async function pullHubStock(stationId) {
   const qs = stationId ? `?station_id=${encodeURIComponent(stationId)}` : '';
-  const res = await request('GET', `/api/hub/inventory/stock${qs}`);
+  const res = await request('GET', `/api/hub/inventory/stock${qs}`, null, true);
   return res?.success ? (res.data || []) : null;
 }
 

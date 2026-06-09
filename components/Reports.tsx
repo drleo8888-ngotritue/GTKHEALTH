@@ -126,11 +126,25 @@ export const Reports: React.FC<ReportsProps> = ({ stationConfig, currentUser, re
                 // Dedup: ưu tiên LOCAL (đầy đủ hơn: có chẩn đoán, giờ ra)
                 // Server chỉ bổ sung ca Spoke mà Hub chưa có local
                 const localIds = new Set(localList.map((e: any) => e.id));
-                const spokeOnly = serverData.filter((e: any) => !localIds.has(e.id));
+                const spokeOnly = serverData.filter((e: any) => !localIds.has(e.id)).map((e: any) => ({ ...e, _fromServer: true }));
                 const merged = [...localList, ...spokeOnly];
-                // Final dedup theo ID phòng bất kỳ edge case nào
+                // Final dedup theo ID
                 const seen = new Set<string>();
-                setEncounters(merged.filter((e: any) => seen.has(e.id) ? false : (seen.add(e.id), true)));
+                const deduped = merged.filter((e: any) => seen.has(e.id) ? false : (seen.add(e.id), true));
+                setEncounters(deduped);
+                // Cập nhật dropdown trạm: bổ sung các trạm Spoke xuất hiện trong server data
+                const knownNames = new Set(storage.getKnownStations().map((s: any) => s.name));
+                const extraStations = [...new Map(
+                  deduped.map((e: any) => e.stationName).filter(Boolean)
+                    .filter((n: string) => !knownNames.has(n))
+                    .map((n: string) => [n, { name: n, type: 'SPOKE' }])
+                ).values()];
+                if (extraStations.length > 0) {
+                  setKnownStations(prev => {
+                    const existing = new Set(prev.map((s: any) => s.name));
+                    return [...prev, ...extraStations.filter((s: any) => !existing.has(s.name))];
+                  });
+                }
             } else {
                 const data = await window.electron.getAllEncounters();
                 setEncounters(data);
@@ -189,7 +203,7 @@ export const Reports: React.FC<ReportsProps> = ({ stationConfig, currentUser, re
         setTimeline([]); 
     }
 
-    const isOpen = e.status === EncounterStatus.REST_30 || e.status === EncounterStatus.MONITOR || e.status === EncounterStatus.IN_PROGRESS;
+    const isOpen = !((e as any)._fromServer) && (e.status === EncounterStatus.REST_30 || e.status === EncounterStatus.MONITOR || e.status === EncounterStatus.IN_PROGRESS);
     setIsEditing(isOpen);
     
     setEditPrescriptions([]);
@@ -766,10 +780,12 @@ export const Reports: React.FC<ReportsProps> = ({ stationConfig, currentUser, re
                          </td>
                          <td className="py-1.5 px-2 text-gray-400 whitespace-nowrap">{e.stationName}</td>
                          <td className="py-1.5 px-2" onClick={ev => ev.stopPropagation()}>
-                           <button onClick={(ev) => handleDeleteEncounter(e.id, e.patientName, ev)} title="Xóa"
-                             className="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded text-red-400 hover:text-red-600 hover:bg-red-100">
-                             <Trash2 size={13}/>
-                           </button>
+                           {!(e as any)._fromServer && (
+                             <button onClick={(ev) => handleDeleteEncounter(e.id, e.patientName, ev)} title="Xóa"
+                               className="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded text-red-400 hover:text-red-600 hover:bg-red-100">
+                               <Trash2 size={13}/>
+                             </button>
+                           )}
                          </td>
                       </tr>
                       );

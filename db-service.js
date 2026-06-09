@@ -802,7 +802,8 @@ module.exports = {
       `SELECT e.*, GROUP_CONCAT(ce.id||'|'||ce.action_type||'|'||ce.actor_name||'|'||ce.details||'|'||ce.timestamp, ';;') as events_raw
        FROM encounters e
        LEFT JOIN clinical_events ce ON ce.encounter_id = e.id
-       WHERE e.is_synced_server = 0 OR e.is_synced_server IS NULL
+       WHERE (e.is_synced_server = 0 OR e.is_synced_server IS NULL)
+         AND e.status NOT IN ('WAITING', 'IN_PROGRESS')
        GROUP BY e.id
        ORDER BY e.start_time ASC
        LIMIT 100`

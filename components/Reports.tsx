@@ -127,7 +127,10 @@ export const Reports: React.FC<ReportsProps> = ({ stationConfig, currentUser, re
                 // Server chỉ bổ sung ca Spoke mà Hub chưa có local
                 const localIds = new Set(localList.map((e: any) => e.id));
                 const spokeOnly = serverData.filter((e: any) => !localIds.has(e.id));
-                setEncounters([...localList, ...spokeOnly]);
+                const merged = [...localList, ...spokeOnly];
+                // Final dedup theo ID phòng bất kỳ edge case nào
+                const seen = new Set<string>();
+                setEncounters(merged.filter((e: any) => seen.has(e.id) ? false : (seen.add(e.id), true)));
             } else {
                 const data = await window.electron.getAllEncounters();
                 setEncounters(data);

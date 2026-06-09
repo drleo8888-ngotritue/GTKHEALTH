@@ -270,8 +270,9 @@ export const Dashboard: React.FC<DashboardProps> = ({ currentUser, stationConfig
             const serverData: any[] = serverRes?.data || [];
             const localList: any[] = localData || [];
             // Local thắng (đầy đủ hơn), server chỉ bổ sung ca Spoke chưa có local
+            // Ca của chính Hub chỉ từ local — tránh resurrect sau khi xóa
             const localIds = new Set(localList.map((e: any) => e.id));
-            const merged = [...localList, ...serverData.filter((e: any) => !localIds.has(e.id))];
+            const merged = [...localList, ...serverData.filter((e: any) => !localIds.has(e.id) && e.stationName !== stationConfig.name)];
             const seen = new Set<string>();
             encounters = merged.filter((e: any) => seen.has(e.id) ? false : (seen.add(e.id), true));
           } else {

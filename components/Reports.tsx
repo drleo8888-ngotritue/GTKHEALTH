@@ -126,7 +126,11 @@ export const Reports: React.FC<ReportsProps> = ({ stationConfig, currentUser, re
                 // Dedup: ưu tiên LOCAL (đầy đủ hơn: có chẩn đoán, giờ ra)
                 // Server chỉ bổ sung ca Spoke mà Hub chưa có local
                 const localIds = new Set(localList.map((e: any) => e.id));
-                const spokeOnly = serverData.filter((e: any) => !localIds.has(e.id)).map((e: any) => ({ ...e, _fromServer: true }));
+                // Chỉ bổ sung ca của Spoke (stationName khác Hub) từ server
+                // Ca của chính Hub chỉ lấy từ local — tránh resurrect sau khi xóa
+                const spokeOnly = serverData
+                  .filter((e: any) => !localIds.has(e.id) && e.stationName !== stationConfig.name)
+                  .map((e: any) => ({ ...e, _fromServer: true }));
                 const merged = [...localList, ...spokeOnly];
                 // Final dedup theo ID
                 const seen = new Set<string>();
@@ -329,7 +333,7 @@ export const Reports: React.FC<ReportsProps> = ({ stationConfig, currentUser, re
   if (pieData.length === 0) pieData.push({ name: 'Chưa có dữ liệu', value: 1 });
 
   const [tablePage, setTablePage] = React.useState(0);
-  React.useEffect(() => { setTablePage(0); }, [detailFilter, startDate, endDate, startTime, endTime]);
+  React.useEffect(() => { setTablePage(0); }, [detailFilter, startDate, endDate, startTime, endTime, filterStation]);
 
   // Danh sách hiển thị theo bộ lọc chi tiết — mới nhất trên cùng
   const fullDisplayList = (activeTopTab === 'infectious'
@@ -440,7 +444,7 @@ export const Reports: React.FC<ReportsProps> = ({ stationConfig, currentUser, re
                             <div className="grid grid-cols-2 gap-4 text-sm text-gray-700">
                                  <div><span className="text-gray-400 block">Giờ vào:</span> <strong>{fmtDT(selectedEncounter.startTime)}</strong></div>
                                  <div><span className="text-gray-400 block">Trạm:</span> <strong>{selectedEncounter.stationName}</strong></div>
-                                 <div className="col-span-2"><span className="text-gray-400 block">Triệu chứng:</span> <div className="font-bold text-red-600">{selectedEncounter.symptoms.join(', ')}</div></div>
+                                 <div className="col-span-2"><span className="text-gray-400 block">Triệu chứng:</span> <div className="font-bold text-red-600">{(Array.isArray(selectedEncounter.symptoms) ? selectedEncounter.symptoms : []).join(', ')}</div></div>
                             </div>
                         </div>
                         

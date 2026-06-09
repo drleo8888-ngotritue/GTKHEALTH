@@ -18,12 +18,13 @@ router.get('/encounters', async (req, res) => {
       params
     );
 
+    const parseArr = (v) => { try { const p = JSON.parse(v || '[]'); return Array.isArray(p) ? p : []; } catch { return []; } };
     res.json({
       success: true,
       data: rows.map(r => ({
         ...r,
-        symptoms:      JSON.parse(r.symptoms      || '[]'),
-        prescriptions: JSON.parse(r.prescriptions || '[]'),
+        symptoms:      parseArr(r.symptoms),
+        prescriptions: parseArr(r.prescriptions),
       })),
     });
   } catch (err) {

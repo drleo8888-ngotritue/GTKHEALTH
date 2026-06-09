@@ -19,6 +19,9 @@ dist-ssr
 # Electron build outputs (rất nặng, không cần track)
 release/
 release-pkg/
+
+# Test environment data (DB + config riêng)
+test-env/
 .patch-temp/
 app.asar
 

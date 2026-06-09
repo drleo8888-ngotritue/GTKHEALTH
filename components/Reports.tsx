@@ -123,10 +123,11 @@ export const Reports: React.FC<ReportsProps> = ({ stationConfig, currentUser, re
                 ]);
                 const serverData: any[] = serverRes?.data || [];
                 const localList: any[] = localData || [];
-                // Dedup: ưu tiên server data, local chỉ thêm những cái chưa có
-                const serverIds = new Set(serverData.map((e: any) => e.id));
-                const localOnly = localList.filter((e: any) => !serverIds.has(e.id));
-                setEncounters([...serverData, ...localOnly]);
+                // Dedup: ưu tiên LOCAL (đầy đủ hơn: có chẩn đoán, giờ ra)
+                // Server chỉ bổ sung ca Spoke mà Hub chưa có local
+                const localIds = new Set(localList.map((e: any) => e.id));
+                const spokeOnly = serverData.filter((e: any) => !localIds.has(e.id));
+                setEncounters([...localList, ...spokeOnly]);
             } else {
                 const data = await window.electron.getAllEncounters();
                 setEncounters(data);

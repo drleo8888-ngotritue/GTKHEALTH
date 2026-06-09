@@ -269,8 +269,9 @@ export const Dashboard: React.FC<DashboardProps> = ({ currentUser, stationConfig
             ]);
             const serverData: any[] = serverRes?.data || [];
             const localList: any[] = localData || [];
-            const serverIds = new Set(serverData.map((e: any) => e.id));
-            encounters = [...serverData, ...localList.filter((e: any) => !serverIds.has(e.id))];
+            // Local thắng (đầy đủ hơn), server chỉ bổ sung ca Spoke chưa có local
+            const localIds = new Set(localList.map((e: any) => e.id));
+            encounters = [...localList, ...serverData.filter((e: any) => !localIds.has(e.id))];
           } else {
             encounters = await (window as any).electron.getAllEncounters();
           }

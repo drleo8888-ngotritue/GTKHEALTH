@@ -9,12 +9,13 @@ router.get('/encounters', async (req, res) => {
     const params = [];
     let where = 'WHERE 1=1';
 
-    if (from)       { where += ' AND start_time >= ?'; params.push(Number(from)); }
-    if (to)         { where += ' AND start_time <= ?'; params.push(Number(to)); }
-    if (station_id) { where += ' AND station_id = ?';  params.push(station_id); }
+    // Dùng received_at để đảm bảo Hub không bỏ sót Spoke push muộn
+    if (from)       { where += ' AND received_at >= ?'; params.push(Number(from)); }
+    if (to)         { where += ' AND received_at <= ?'; params.push(Number(to)); }
+    if (station_id) { where += ' AND station_id = ?';   params.push(station_id); }
 
     const rows = await db.all(
-      `SELECT * FROM encounters ${where} ORDER BY start_time ASC LIMIT 5000`,
+      `SELECT * FROM encounters ${where} ORDER BY received_at ASC LIMIT 5000`,
       params
     );
 

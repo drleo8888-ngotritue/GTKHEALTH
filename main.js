@@ -116,8 +116,10 @@ async function doHubPull() {
       const inserted = await dbService.upsertEncountersFromServer(batch);
       totalInserted += inserted;
 
-      // Cập nhật mốc = start_time lớn nhất trong batch + 1ms
-      const maxTime = Math.max(...batch.map(e => e.start_time || 0));
+      // Cập nhật mốc = received_at lớn nhất trong batch + 1ms
+      // Dùng received_at (thời điểm server nhận) thay vì start_time
+      // để không bỏ sót ca khám từ Spoke push muộn (offline lâu ngày)
+      const maxTime = Math.max(...batch.map(e => e.received_at || e.start_time || 0));
       _lastHubPullTime = maxTime + 1;
       saveSyncState({ lastHubPullTime: _lastHubPullTime });
 

@@ -114,11 +114,19 @@ export const Reports: React.FC<ReportsProps> = ({ stationConfig, currentUser, re
     if (window.electron) {
         try {
             if (stationConfig.type === StationType.HUB) {
-                // Hub đọc thẳng từ server theo khoảng thời gian đang xem
+                // Load local trước (Hub's own), rồi merge thêm Spoke data từ server
                 const fromTs = new Date(`${startDate}T${startTime}`).getTime();
                 const toTs   = new Date(`${endDate}T${endTime}`).getTime();
-                const res = await (window as any).electron.queryServerEncounters({ from: fromTs, to: toTs });
-                setEncounters(res?.data || []);
+                const [localData, serverRes] = await Promise.all([
+                    window.electron.getAllEncounters(),
+                    (window as any).electron.queryServerEncounters({ from: fromTs, to: toTs }),
+                ]);
+                const serverData: any[] = serverRes?.data || [];
+                const localList: any[] = localData || [];
+                // Dedup: ưu tiên server data, local chỉ thêm những cái chưa có
+                const serverIds = new Set(serverData.map((e: any) => e.id));
+                const localOnly = localList.filter((e: any) => !serverIds.has(e.id));
+                setEncounters([...serverData, ...localOnly]);
             } else {
                 const data = await window.electron.getAllEncounters();
                 setEncounters(data);

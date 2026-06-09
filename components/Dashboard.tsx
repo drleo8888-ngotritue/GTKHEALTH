@@ -261,10 +261,16 @@ export const Dashboard: React.FC<DashboardProps> = ({ currentUser, stationConfig
         try {
           let encounters: any[] = [];
           if (stationConfig.type === StationType.HUB && (window as any).electron.queryServerEncounters) {
-            // Hub đọc thẳng từ server — 90 ngày gần nhất (đủ cho trend chart + KPI hôm nay)
+            // Hub: merge local + server để không bao giờ mất data
             const from = Date.now() - 90 * 24 * 60 * 60 * 1000;
-            const res = await (window as any).electron.queryServerEncounters({ from });
-            encounters = res?.data || [];
+            const [localData, serverRes] = await Promise.all([
+              (window as any).electron.getAllEncounters(),
+              (window as any).electron.queryServerEncounters({ from }),
+            ]);
+            const serverData: any[] = serverRes?.data || [];
+            const localList: any[] = localData || [];
+            const serverIds = new Set(serverData.map((e: any) => e.id));
+            encounters = [...serverData, ...localList.filter((e: any) => !serverIds.has(e.id))];
           } else {
             encounters = await (window as any).electron.getAllEncounters();
           }

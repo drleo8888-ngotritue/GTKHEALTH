@@ -81,4 +81,7 @@ contextBridge.exposeInMainWorld('electron', {
 
   // --- ĐIỀU CHUYỂN THUỐC QUA SERVER ---
   createServerTransfer: (data) => ipcRenderer.invoke('hub:create-transfer', data),
+
+  // --- HUB: Lấy tồn kho snapshot của một trạm Spoke ---
+  getHubSpokeStock: (stationName) => ipcRenderer.invoke('hub:get-spoke-stock', stationName),
 });

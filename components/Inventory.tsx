@@ -116,6 +116,11 @@ export const Inventory: React.FC<InventoryProps> = ({ stationConfig, refreshTrig
     if(stations.length > 0) setKnownStations(stations);
   }, [stationConfig.name]);
 
+  // Khi Hub đổi trạm lọc → tải lại dữ liệu từ nguồn phù hợp
+  useEffect(() => {
+    if (stationConfig.type === StationType.HUB) loadData();
+  }, [filterStation]);
+
   useEffect(() => {
       loadData(); 
       setNewItem(prev => ({ ...prev, type: inventoryType, group: '' }));
@@ -132,10 +137,39 @@ export const Inventory: React.FC<InventoryProps> = ({ stationConfig, refreshTrig
     setIsLoading(true);
     if ((window as any).electron) {
         try {
-            const list = await dataService.getInventory(stationConfig.name);
-            if (list) setMedicines(list);
-            const transactionLogs = await dataService.getInventoryLogs();
-            if (transactionLogs) setLogs(transactionLogs);
+            const isViewingSpoke = stationConfig.type === StationType.HUB
+              && filterStation !== 'ALL'
+              && filterStation !== stationConfig.name;
+
+            if (isViewingSpoke) {
+                // HUB xem tồn kho snapshot của trạm Spoke từ server
+                const res = await (window as any).electron.getHubSpokeStock(filterStation);
+                if (res?.success && Array.isArray(res.data)) {
+                    const mapped: Medicine[] = res.data.map((r: any) => ({
+                        id: r.id || `${r.station_name}_${r.name}_${r.batch_number}`,
+                        name: r.name || '',
+                        group: r.group_name || '',
+                        group_name: r.group_name || '',
+                        unit: r.unit || '',
+                        stock: r.stock || 0,
+                        expiryDate: r.expiry_date || '',
+                        batchNumber: r.batch_number || '',
+                        type: (r.type || 'MEDICINE') as MedicineType,
+                        station: r.station_name || filterStation,
+                    }));
+                    setMedicines(mapped);
+                    setLogs([]); // Logs của Spoke không có ở Hub
+                } else {
+                    setMedicines([]);
+                    setLogs([]);
+                }
+            } else {
+                // Hub hoặc Spoke xem kho của chính mình
+                const list = await dataService.getInventory(stationConfig.name);
+                if (list) setMedicines(list);
+                const transactionLogs = await dataService.getInventoryLogs();
+                if (transactionLogs) setLogs(transactionLogs);
+            }
             // Load lịch sử chốt kỳ
             const periods = await (window as any).electron.getClosedPeriods(stationConfig.name);
             if (periods) setClosedPeriods(periods);

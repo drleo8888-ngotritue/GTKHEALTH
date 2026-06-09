@@ -941,6 +941,45 @@ module.exports = {
     return { success: true, count: inserted };
   },
 
+  // Hub upsert ca khám kéo từ server về local DB (INSERT OR IGNORE → không ghi đè)
+  upsertEncountersFromServer: async (encounters) => {
+    if (!encounters || encounters.length === 0) return 0;
+    let inserted = 0;
+    for (const enc of encounters) {
+      try {
+        const result = await runQuery(
+          `INSERT OR IGNORE INTO encounters
+            (id, patient_id, patient_name, department, station_id, station_name,
+             symptoms, diagnosis, disease_group, instruction, prescriptions, status,
+             start_time, end_time, rest_start_time, notes, is_synced_server, is_supplementary)
+           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,1,0)`,
+          [
+            enc.id,
+            enc.patient_id   || enc.patientId   || '',
+            enc.patient_name || enc.patientName  || '',
+            enc.department   || '',
+            enc.station_id   || enc.stationId    || '',
+            enc.station_name || enc.stationName  || '',
+            typeof enc.symptoms      === 'string' ? enc.symptoms      : JSON.stringify(enc.symptoms      || []),
+            enc.diagnosis     || null,
+            enc.disease_group || enc.diseaseGroup || null,
+            enc.instruction   || null,
+            typeof enc.prescriptions === 'string' ? enc.prescriptions : JSON.stringify(enc.prescriptions || []),
+            enc.status        || 'COMPLETED_WORK',
+            enc.start_time    || enc.startTime,
+            enc.end_time      || enc.endTime      || null,
+            enc.rest_start_time || enc.restStartTime || null,
+            enc.notes         || null,
+          ]
+        );
+        if (result && result.changes > 0) inserted++;
+      } catch (e) {
+        console.warn(`⚠️ upsertEncountersFromServer bỏ qua ${enc.id}:`, e.message);
+      }
+    }
+    return inserted;
+  },
+
   // === RESET DỮ LIỆU ===
   resetData: async (type) => {
     // type: 'MEDICINE' | 'SUPPLY' | 'ALL'

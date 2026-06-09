@@ -67,6 +67,30 @@ function createWindow() {
 // ---------------------------------------------------------------------------
 let _retryTimer = null;
 
+// Hub kéo ca khám + tồn kho từ server về local DB
+async function doHubPull() {
+  try {
+    // 1. Pull encounters
+    console.log('🔄 [HUB PULL] Đang kéo ca khám từ server...');
+    const serverEncounters = await syncServer.pullHubEncounters();
+    if (Array.isArray(serverEncounters) && serverEncounters.length > 0) {
+      const inserted = await dbService.upsertEncountersFromServer(serverEncounters);
+      if (inserted > 0) {
+        console.log(`✅ [HUB PULL] Đã lưu ${inserted} ca khám mới (server có ${serverEncounters.length} bản ghi)`);
+        BrowserWindow.getAllWindows().forEach(win => {
+          if (!win.isDestroyed()) win.webContents.send('data:update');
+        });
+      } else {
+        console.log(`ℹ️ [HUB PULL] Không có ca khám mới (server: ${serverEncounters.length}, đều đã có)`);
+      }
+    } else {
+      console.log('ℹ️ [HUB PULL] Server chưa có ca khám nào.');
+    }
+  } catch (err) {
+    console.warn('⚠️ [HUB PULL] Lỗi kéo dữ liệu từ server:', err.message);
+  }
+}
+
 async function doServerSync() {
   const cfg = syncServer.getSyncConfig();
   if (!cfg.enabled || !cfg.serverUrl) return;
@@ -75,24 +99,39 @@ async function doServerSync() {
     // PUSH encounters
     const encounters = await dbService.getUnsyncedEncounters();
     if (encounters.length > 0) {
+      console.log(`⬆️ [SYNC] Đang push ${encounters.length} ca khám lên server...`);
       const res = await syncServer.pushEncounters(encounters);
       if (res?.success && Array.isArray(res.received_ids) && res.received_ids.length > 0) {
         await dbService.markEncountersSynced(res.received_ids);
+        console.log(`✅ [SYNC] Push ca khám: ${res.received_ids.length} đã xác nhận.`);
       } else if (res?.success) {
         // Server thành công nhưng không trả received_ids → mark tất cả
         await dbService.markEncountersSynced(encounters.map(e => e.id));
+        console.log(`✅ [SYNC] Push ca khám: ${encounters.length} đã gửi.`);
+      } else {
+        console.warn('⚠️ [SYNC] Push ca khám thất bại hoặc server không phản hồi.');
       }
     }
 
     // PUSH inventory logs
     const logs = await dbService.getUnsyncedInventoryLogs();
     if (logs.length > 0) {
+      console.log(`⬆️ [SYNC] Đang push ${logs.length} inventory logs lên server...`);
       const res = await syncServer.pushInventoryLogs(logs);
       if (res?.success && Array.isArray(res.received_ids) && res.received_ids.length > 0) {
         await dbService.markInventoryLogsSynced(res.received_ids);
+        console.log(`✅ [SYNC] Push inventory logs: ${res.received_ids.length} đã xác nhận.`);
       } else if (res?.success) {
         await dbService.markInventoryLogsSynced(logs.map(l => l.id));
+        console.log(`✅ [SYNC] Push inventory logs: ${logs.length} đã gửi.`);
+      } else {
+        console.warn('⚠️ [SYNC] Push inventory logs thất bại.');
       }
+    }
+
+    // HUB: kéo dữ liệu từ server về local
+    if (_stationType === 'HUB') {
+      await doHubPull();
     }
 
     // SPOKE: kiểm tra phiếu điều chuyển thuốc đang chờ từ Hub
@@ -713,6 +752,19 @@ ipcMain.handle('hub:create-transfer', async (event, { targetStation, medicines, 
   } catch (err) {
     console.error('❌ Lỗi tạo phiếu điều chuyển:', err);
     return { success: false, message: err.message };
+  }
+});
+
+// === HUB: Lấy tồn kho tức thời của một trạm Spoke từ server ===
+ipcMain.handle('hub:get-spoke-stock', async (event, stationName) => {
+  try {
+    console.log(`🔍 [HUB] Lấy tồn kho trạm "${stationName}" từ server...`);
+    const data = await syncServer.pullHubStock(stationName);
+    console.log(`✅ [HUB] Tồn kho "${stationName}": ${(data || []).length} mặt hàng`);
+    return { success: true, data: data || [] };
+  } catch (err) {
+    console.error('❌ Lỗi lấy tồn kho Spoke:', err.message);
+    return { success: false, data: [], message: err.message };
   }
 });
 

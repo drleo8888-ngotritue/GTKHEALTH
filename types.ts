@@ -249,6 +249,7 @@ declare global {
       onServerSyncTime: (callback: (time: string) => void) => void;
       removeServerSyncTimeListener?: () => void;
       createServerTransfer: (data: { targetStation: string; medicines: any[]; note?: string; createdBy?: string }) => Promise<{ success: boolean; id?: string; message?: string }>;
+      getHubSpokeStock: (stationName: string) => Promise<{ success: boolean; data: any[]; message?: string }>;
 
       // Excel Import
       importEncountersFromExcel: (encounters: any[], deductInventory: boolean) => Promise<{ success: boolean; count: number; message?: string }>;

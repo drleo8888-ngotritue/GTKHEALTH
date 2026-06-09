@@ -14,7 +14,7 @@ router.get('/encounters', async (req, res) => {
     if (station_id) { where += ' AND station_id = ?';  params.push(station_id); }
 
     const rows = await db.all(
-      `SELECT * FROM encounters ${where} ORDER BY start_time DESC LIMIT 5000`,
+      `SELECT * FROM encounters ${where} ORDER BY start_time ASC LIMIT 5000`,
       params
     );
 

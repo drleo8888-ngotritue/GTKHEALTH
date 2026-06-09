@@ -78,27 +78,62 @@ function createWindow() {
 // ---------------------------------------------------------------------------
 let _retryTimer = null;
 
-// Hub kéo ca khám + tồn kho từ server về local DB
+// Lưu/đọc trạng thái sync vào file (tồn tại qua app restart)
+function _syncSettingsPath() {
+  return path.join(app.getPath('userData'), 'sync-state.json');
+}
+function loadSyncState() {
+  try { return JSON.parse(fs.readFileSync(_syncSettingsPath(), 'utf8')); }
+  catch { return {}; }
+}
+function saveSyncState(data) {
+  try {
+    const cur = loadSyncState();
+    fs.writeFileSync(_syncSettingsPath(), JSON.stringify({ ...cur, ...data }), 'utf8');
+  } catch {}
+}
+
+// Hub kéo ca khám từ server về local DB — theo batch từ cũ đến mới
+// Lần đầu kéo hết toàn bộ lịch sử, sau đó chỉ kéo phần mới
+let _lastHubPullTime = loadSyncState().lastHubPullTime || 0;
+
 async function doHubPull() {
   try {
-    // 1. Pull encounters
-    console.log('🔄 [HUB PULL] Đang kéo ca khám từ server...');
-    const serverEncounters = await syncServer.pullHubEncounters();
-    if (Array.isArray(serverEncounters) && serverEncounters.length > 0) {
-      const inserted = await dbService.upsertEncountersFromServer(serverEncounters);
-      if (inserted > 0) {
-        console.log(`✅ [HUB PULL] Đã lưu ${inserted} ca khám mới (server có ${serverEncounters.length} bản ghi)`);
-        BrowserWindow.getAllWindows().forEach(win => {
-          if (!win.isDestroyed()) win.webContents.send('data:update');
-        });
-      } else {
-        console.log(`ℹ️ [HUB PULL] Không có ca khám mới (server: ${serverEncounters.length}, đều đã có)`);
+    let totalInserted = 0;
+    let batchNum = 0;
+    let fromTime = _lastHubPullTime;
+
+    while (true) {
+      batchNum++;
+      console.log(`🔄 [HUB PULL] Batch ${batchNum} — from: ${fromTime ? new Date(fromTime).toLocaleString('vi-VN') : 'đầu thời gian'}...`);
+
+      const batch = await syncServer.pullHubEncounters(fromTime);
+      if (!Array.isArray(batch) || batch.length === 0) {
+        console.log(`ℹ️ [HUB PULL] Không có ca khám mới.`);
+        break;
       }
-    } else {
-      console.log('ℹ️ [HUB PULL] Server chưa có ca khám nào.');
+
+      const inserted = await dbService.upsertEncountersFromServer(batch);
+      totalInserted += inserted;
+
+      // Cập nhật mốc = start_time lớn nhất trong batch + 1ms
+      const maxTime = Math.max(...batch.map(e => e.start_time || 0));
+      _lastHubPullTime = maxTime + 1;
+      saveSyncState({ lastHubPullTime: _lastHubPullTime });
+
+      console.log(`✅ [HUB PULL] Batch ${batchNum}: server=${batch.length}, mới=${inserted}, mốc tiếp=${new Date(_lastHubPullTime).toLocaleString('vi-VN')}`);
+
+      if (batch.length < 5000) break; // Batch nhỏ hơn giới hạn → đã hết data
+    }
+
+    if (totalInserted > 0) {
+      console.log(`✅ [HUB PULL] Tổng: ${totalInserted} ca khám mới sau ${batchNum} batch`);
+      BrowserWindow.getAllWindows().forEach(win => {
+        if (!win.isDestroyed()) win.webContents.send('data:update');
+      });
     }
   } catch (err) {
-    console.warn('⚠️ [HUB PULL] Lỗi kéo dữ liệu từ server:', err.message);
+    console.warn('⚠️ [HUB PULL] Lỗi:', err.message);
   }
 }
 
@@ -921,10 +956,16 @@ ipcMain.handle('server-sync:update-config', async (event, config) => {
 });
 
 // Renderer gọi khi Admin lưu station config — để main biết stationId/stationName/type
-let _stationType = 'SPOKE';
+// Đọc từ file để không mất khi app restart
+let _stationType = loadSyncState().stationType || 'SPOKE';
+console.log(`🏥 [INIT] Station type từ file: ${_stationType}`);
+
 ipcMain.handle('server-sync:update-station', async (event, { id, name, type }) => {
   syncServer.setStationConfig({ id, name });
-  if (type) _stationType = type;
+  if (type) {
+    _stationType = type;
+    saveSyncState({ stationType: type });
+  }
   return { success: true };
 });
 

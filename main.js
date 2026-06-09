@@ -94,6 +94,12 @@ async function doServerSync() {
         await dbService.markInventoryLogsSynced(logs.map(l => l.id));
       }
     }
+
+    // Emit thời gian sync thành công lên renderer
+    const timeStr = new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    BrowserWindow.getAllWindows().forEach(win => {
+      if (!win.isDestroyed()) win.webContents.send('server-sync:last-time', timeStr);
+    });
   } catch (err) {
     console.warn('⚠️ Server sync lỗi (sẽ retry sau):', err.message);
   }

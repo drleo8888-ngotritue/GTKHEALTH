@@ -246,6 +246,8 @@ declare global {
       // Real-time Listeners
       onDataUpdate: (callback: (data: any) => void) => void;
       removeDataUpdateListener: () => void;
+      onServerSyncTime: (callback: (time: string) => void) => void;
+      removeServerSyncTimeListener?: () => void;
 
       // Excel Import
       importEncountersFromExcel: (encounters: any[], deductInventory: boolean) => Promise<{ success: boolean; count: number; message?: string }>;

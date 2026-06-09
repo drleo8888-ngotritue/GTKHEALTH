@@ -74,4 +74,8 @@ contextBridge.exposeInMainWorld('electron', {
   // --- HỆ THỐNG REAL-TIME ---
   onDataUpdate: (callback) => ipcRenderer.on('data:update', (_event, value) => callback(value)),
   removeDataUpdateListener: () => ipcRenderer.removeAllListeners('data:update'),
+
+  // Nhận thời gian sync server thành công
+  onServerSyncTime: (callback) => ipcRenderer.on('server-sync:last-time', (_event, time) => callback(time)),
+  removeServerSyncTimeListener: () => ipcRenderer.removeAllListeners('server-sync:last-time'),
 });

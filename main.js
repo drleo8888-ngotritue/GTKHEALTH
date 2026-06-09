@@ -45,6 +45,17 @@ function createWindow() {
   });
   mainWindow.setMenu(null);
 
+  // F12 mở/đóng DevTools (cả dev lẫn production)
+  mainWindow.webContents.on('before-input-event', (event, input) => {
+    if (input.key === 'F12') {
+      if (mainWindow.webContents.isDevToolsOpened()) {
+        mainWindow.webContents.closeDevTools();
+      } else {
+        mainWindow.webContents.openDevTools();
+      }
+    }
+  });
+
   // Tự động maximize trên màn hình dọc hoặc màn hình nhỏ
   if (isPortraitOrSmall) {
     mainWindow.maximize();

@@ -101,6 +101,15 @@ export const Admin: React.FC<AdminProps> = ({ currentUser }) => {
   const [syncTestMessage, setSyncTestMessage] = useState('');
   const [syncSaved, setSyncSaved] = useState(false);
 
+  // Push dữ liệu quá khứ
+  const [pushEncounters, setPushEncounters]       = useState(true);
+  const [pushInventoryLogs, setPushInventoryLogs] = useState(false);
+  const [isSyncingProgress, setIsSyncingProgress] = useState(false);
+  const [syncProgressPct, setSyncProgressPct]     = useState(0);
+  const [syncProgressText, setSyncProgressText]   = useState('');
+  const [pushStatusRows, setPushStatusRows]       = useState<{ date: string; total: number; pushed: number; pending: number }[]>([]);
+  const [syncLogs, setSyncLogs]                   = useState<string[]>([]);
+
   // Confirmation Modal State
   const [confirmModal, setConfirmModal] = useState<{
     show: boolean;
@@ -130,6 +139,23 @@ export const Admin: React.FC<AdminProps> = ({ currentUser }) => {
     }, 300);
     return () => clearTimeout(timer);
   }, [empSearch]);
+
+  // Sync progress listener — active while serverSync tab open
+  useEffect(() => {
+    if (activeTab !== 'serverSync' || !window.electron) return;
+    window.electron.getPushStatus?.().then((rows: any[]) => setPushStatusRows(rows || []));
+    window.electron.onSyncProgress?.((data: any) => {
+      if (data.encounterRows) setPushStatusRows(data.encounterRows);
+      if (data.totalToSync > 0) {
+        setSyncProgressPct(Math.round((data.totalProcessed / data.totalToSync) * 100));
+        setSyncProgressText(`${data.totalProcessed} / ${data.totalToSync}`);
+      }
+      if (data.logMessage) setSyncLogs(prev => [data.logMessage, ...prev].slice(0, 100));
+      if (data.done) setIsSyncingProgress(false);
+      else setIsSyncingProgress(true);
+    });
+    return () => { window.electron.removeSyncProgressListener?.(); };
+  }, [activeTab]);
 
   // 🔥 [UPDATE] Load Data: Lấy thuốc từ kho thật & FIX LỖI LỌC
   const loadData = async () => {
@@ -689,7 +715,7 @@ export const Admin: React.FC<AdminProps> = ({ currentUser }) => {
             </div>
         )}
 
-        {activeTab !== null && <div className="flex-1 bg-white rounded-xl shadow-sm p-6 overflow-hidden flex flex-col">
+        {activeTab !== null && <div className="flex-1 bg-white rounded-xl shadow-sm p-6 overflow-y-auto flex flex-col">
             {activeTab === 'protocols' && (
                 <>
                     <div className="flex justify-between items-center mb-6">
@@ -1282,181 +1308,340 @@ export const Admin: React.FC<AdminProps> = ({ currentUser }) => {
             )}
 
             {activeTab === 'serverSync' && (
-                <div className="flex flex-col gap-5 overflow-y-auto max-w-2xl">
-                    <div className="flex items-center gap-3 mb-1">
-                        <Server size={24} className="text-blue-600"/>
+                <div className="flex flex-col gap-5 w-full">
+                    {/* Header */}
+                    <div className="flex items-center gap-3">
+                        <Server size={24} className="text-blue-600 shrink-0"/>
                         <div>
-                            <h3 className="text-xl font-bold text-gray-800">Đồng bộ Server / 服务器同步</h3>
+                            <h3 className="text-xl font-bold text-gray-800">Đồng bộ máy chủ</h3>
                             <p className="text-sm text-gray-500">Dữ liệu vẫn lưu offline. Server chỉ nhận thêm khi được bật.</p>
                         </div>
                     </div>
 
-                    {/* Trạng thái chưa sync */}
-                    {unsyncedCount && (
-                        <div className={`rounded-xl p-4 border flex items-center gap-4 ${
-                            (unsyncedCount.encounters + unsyncedCount.medicines + unsyncedCount.inventoryLogs) > 0
-                            ? 'bg-amber-50 border-amber-200' : 'bg-green-50 border-green-200'
-                        }`}>
-                            <div className="flex-1">
-                                <p className="font-bold text-sm text-gray-700 mb-1">Trạng thái đồng bộ / 同步状态</p>
-                                <div className="flex gap-4 text-sm">
-                                    <span className={unsyncedCount.encounters > 0 ? 'text-amber-700 font-bold' : 'text-green-600'}>
-                                        Ca khám / 就诊: {unsyncedCount.encounters} chưa sync
-                                    </span>
-                                    <span className={unsyncedCount.inventoryLogs > 0 ? 'text-amber-700 font-bold' : 'text-green-600'}>
-                                        Giao dịch kho / 库存: {unsyncedCount.inventoryLogs} chưa sync
-                                    </span>
-                                    <span className={unsyncedCount.medicines > 0 ? 'text-amber-700 font-bold' : 'text-green-600'}>
-                                        Thuốc/vật tư / 药品耗材: {unsyncedCount.medicines} chưa sync
-                                    </span>
+                    {/* Trạng thái — 3 card số lớn */}
+                    {unsyncedCount && (() => {
+                        const total = unsyncedCount.encounters + unsyncedCount.medicines + unsyncedCount.inventoryLogs;
+                        const allDone = total === 0;
+                        const items = [
+                            { label: 'Ca khám', sub: 'chưa đồng bộ', value: unsyncedCount.encounters },
+                            { label: 'Giao dịch kho', sub: 'chưa đồng bộ', value: unsyncedCount.inventoryLogs },
+                            { label: 'Thuốc / vật tư', sub: 'chưa đồng bộ', value: unsyncedCount.medicines },
+                        ];
+                        return (
+                            <div className={`rounded-xl border p-4 ${allDone ? 'bg-green-50 border-green-200' : 'bg-amber-50 border-amber-200'}`}>
+                                <div className="flex items-center justify-between mb-3">
+                                    <p className={`text-xs font-bold uppercase tracking-wide ${allDone ? 'text-green-600' : 'text-amber-600'}`}>
+                                        {allDone ? '✓ Tất cả đã đồng bộ' : 'Đang chờ đồng bộ'}
+                                    </p>
+                                    <button
+                                        onClick={() => window.electron?.getUnsyncedCount().then(setUnsyncedCount)}
+                                        className="text-gray-400 hover:text-gray-600"
+                                        title="Làm mới"
+                                    >
+                                        <RefreshCw size={14}/>
+                                    </button>
+                                </div>
+                                <div className="grid grid-cols-3 gap-4">
+                                    {items.map(it => (
+                                        <div key={it.label} className={`rounded-xl px-4 py-3 text-center border ${it.value > 0 ? 'bg-amber-100 border-amber-300' : 'bg-white border-gray-200'}`}>
+                                            <p className={`text-3xl font-black ${it.value > 0 ? 'text-amber-700' : 'text-green-500'}`}>{it.value}</p>
+                                            <p className="text-sm font-semibold text-gray-600 mt-1">{it.label}</p>
+                                            <p className="text-xs text-gray-400">{it.sub}</p>
+                                        </div>
+                                    ))}
                                 </div>
                             </div>
+                        );
+                    })()}
+
+                    {/* 2 cột: Cấu hình kết nối | Chu kỳ & Nhân viên */}
+                    <div className="grid grid-cols-2 gap-5">
+
+                        {/* Cột trái — kết nối */}
+                        <div className="flex flex-col gap-4">
+                            <div className="border border-gray-200 rounded-xl overflow-hidden">
+                                {/* Toggle */}
+                                <div className="flex items-center justify-between px-4 py-3 bg-gray-50 border-b border-gray-200">
+                                    <div>
+                                        <p className="font-bold text-sm text-gray-700">Kích hoạt đồng bộ</p>
+                                        <p className="text-xs text-gray-400">Tự động push khi có kết nối</p>
+                                    </div>
+                                    <button
+                                        onClick={() => setSyncConfig(c => ({ ...c, enabled: !c.enabled }))}
+                                        className={`flex items-center w-11 h-6 rounded-full p-0.5 transition-colors duration-200 ${syncConfig.enabled ? 'bg-blue-600' : 'bg-gray-300'}`}
+                                    >
+                                        <span className={`w-5 h-5 bg-white rounded-full shadow transition-transform duration-200 ${syncConfig.enabled ? 'translate-x-5' : 'translate-x-0'}`}/>
+                                    </button>
+                                </div>
+                                {/* URL + Key */}
+                                <div className="px-4 py-3 flex flex-col gap-3">
+                                    <div>
+                                        <label className="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1">Server URL</label>
+                                        <input
+                                            type="text"
+                                            value={syncConfig.serverUrl}
+                                            onChange={e => setSyncConfig(c => ({ ...c, serverUrl: e.target.value }))}
+                                            placeholder="http://10.0.0.1:3500"
+                                            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1">API Key</label>
+                                        <input
+                                            type="password"
+                                            value={syncConfig.apiKey}
+                                            onChange={e => setSyncConfig(c => ({ ...c, apiKey: e.target.value }))}
+                                            placeholder="••••••••••••••••"
+                                            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+                                        />
+                                    </div>
+                                </div>
+                                {/* Test */}
+                                <div className="px-4 pb-3 flex items-center gap-3">
+                                    <button
+                                        onClick={handleTestConnection}
+                                        disabled={!syncConfig.serverUrl || syncTestStatus === 'loading'}
+                                        className="flex items-center gap-2 px-3 py-1.5 border border-blue-400 text-blue-600 rounded-lg text-sm font-bold hover:bg-blue-50 disabled:opacity-40 disabled:cursor-not-allowed"
+                                    >
+                                        {syncTestStatus === 'loading'
+                                            ? <><RefreshCw size={14} className="animate-spin"/> Đang kiểm tra...</>
+                                            : <><Wifi size={14}/> Test kết nối</>
+                                        }
+                                    </button>
+                                    {syncTestStatus === 'success' && (
+                                        <span className="flex items-center gap-1 text-sm text-green-600 font-medium">
+                                            <Check size={14}/> {syncTestMessage}
+                                        </span>
+                                    )}
+                                    {syncTestStatus === 'error' && (
+                                        <span className="flex items-center gap-1 text-sm text-red-500 font-medium">
+                                            <WifiOff size={14}/> {syncTestMessage}
+                                        </span>
+                                    )}
+                                </div>
+                            </div>
+
+                            {/* Lưu cấu hình */}
                             <button
-                                onClick={() => window.electron?.getUnsyncedCount().then(setUnsyncedCount)}
-                                className="text-gray-400 hover:text-gray-600"
-                                title="Làm mới"
+                                onClick={handleSaveSyncConfig}
+                                className="flex items-center justify-center gap-2 px-4 py-3 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 transition-all"
                             >
-                                <RefreshCw size={16}/>
+                                {syncSaved ? <><Check size={18}/> Đã lưu!</> : <><Check size={18}/> Lưu cấu hình</>}
                             </button>
+                        </div>
+
+                        {/* Cột phải — chu kỳ & nhân viên */}
+                        <div className="flex flex-col gap-4">
+                            <div className="border border-gray-200 rounded-xl overflow-hidden">
+                                <div className="px-4 py-3 bg-gray-50 border-b border-gray-200">
+                                    <p className="font-bold text-sm text-gray-700">Cài đặt chu kỳ</p>
+                                </div>
+                                <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
+                                    <div>
+                                        <p className="text-sm font-medium text-gray-700">Chu kỳ đồng bộ lại</p>
+                                        <p className="text-xs text-gray-400">Quét & gửi lại bản ghi chưa sync</p>
+                                    </div>
+                                    <select
+                                        value={syncConfig.retryIntervalMinutes}
+                                        onChange={e => setSyncConfig(c => ({ ...c, retryIntervalMinutes: Number(e.target.value) }))}
+                                        className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+                                    >
+                                        {[1, 3, 5, 10, 15, 30].map(v => (
+                                            <option key={v} value={v}>{v} phút</option>
+                                        ))}
+                                    </select>
+                                </div>
+                                <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
+                                    <div>
+                                        <p className="text-sm font-medium text-gray-700">Sync nhân viên khi khởi động</p>
+                                        <p className="text-xs text-gray-400">Kiosk nhận ra nhân viên mới</p>
+                                    </div>
+                                    <button
+                                        onClick={() => setSyncConfig(c => ({ ...c, syncEmployeesOnStartup: !c.syncEmployeesOnStartup }))}
+                                        className={`flex items-center w-11 h-6 rounded-full p-0.5 transition-colors duration-200 ${syncConfig.syncEmployeesOnStartup ? 'bg-blue-600' : 'bg-gray-300'}`}
+                                    >
+                                        <span className={`w-5 h-5 bg-white rounded-full shadow transition-transform duration-200 ${syncConfig.syncEmployeesOnStartup ? 'translate-x-5' : 'translate-x-0'}`}/>
+                                    </button>
+                                </div>
+                                <div className="px-4 py-3 flex items-center justify-between">
+                                    <div>
+                                        <p className="text-sm font-medium text-gray-700">Chu kỳ sync nhân viên</p>
+                                        <p className="text-xs text-gray-400">Cập nhật danh sách định kỳ</p>
+                                    </div>
+                                    <select
+                                        value={syncConfig.employeeSyncIntervalHours}
+                                        onChange={e => setSyncConfig(c => ({ ...c, employeeSyncIntervalHours: Number(e.target.value) }))}
+                                        className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+                                    >
+                                        {[1, 2, 4, 8, 12, 24].map(v => (
+                                            <option key={v} value={v}>{v} giờ</option>
+                                        ))}
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 text-sm text-blue-700">
+                                <p className="font-bold mb-2">Lưu ý</p>
+                                <ul className="list-disc list-inside space-y-1.5 text-blue-600">
+                                    <li>App hoạt động bình thường khi mất mạng hoặc tắt sync</li>
+                                    <li>Dữ liệu chưa sync tự động gửi lại theo chu kỳ đã cài</li>
+                                    <li>Tồn kho chỉ đồng bộ 1 chiều: Spoke → Server</li>
+                                </ul>
+                            </div>
+                        </div>
+
+                    </div>
+
+                    {/* ── Đẩy dữ liệu quá khứ ── */}
+                    <div className="border border-gray-200 rounded-xl overflow-hidden">
+                        <div className="px-4 py-3 bg-gray-50 border-b border-gray-200 flex items-center justify-between">
+                            <div>
+                                <p className="font-bold text-sm text-gray-700">Đẩy dữ liệu quá khứ</p>
+                                <p className="text-xs text-gray-400">Chọn loại dữ liệu cần push lên server (theo lô 10, kiểm tra trùng trước)</p>
+                            </div>
+                        </div>
+                        <div className="px-4 py-4 flex flex-col gap-4">
+
+                            {/* Checkboxes */}
+                            <div className="flex flex-wrap gap-4">
+                                <label className="flex items-center gap-2 cursor-pointer select-none">
+                                    <input
+                                        type="checkbox"
+                                        checked={pushEncounters}
+                                        onChange={e => setPushEncounters(e.target.checked)}
+                                        disabled={isSyncingProgress}
+                                        className="w-4 h-4 accent-blue-600"
+                                    />
+                                    <span className="text-sm font-medium text-gray-700">Ca khám đã hoàn thành</span>
+                                </label>
+                                <label className="flex items-center gap-2 cursor-pointer select-none">
+                                    <input
+                                        type="checkbox"
+                                        checked={pushInventoryLogs}
+                                        onChange={e => setPushInventoryLogs(e.target.checked)}
+                                        disabled={isSyncingProgress}
+                                        className="w-4 h-4 accent-blue-600"
+                                    />
+                                    <span className="text-sm font-medium text-gray-700">Giao dịch kho</span>
+                                </label>
+                            </div>
+
+                            {/* Nút bắt đầu + progress */}
+                            <div className="flex items-center gap-4">
+                                <button
+                                    disabled={isSyncingProgress || (!pushEncounters && !pushInventoryLogs) || !syncConfig.serverUrl}
+                                    onClick={() => {
+                                        if (isSyncingProgress || !window.electron) return;
+                                        setIsSyncingProgress(true);
+                                        setSyncProgressPct(0);
+                                        setSyncProgressText('0 / 0');
+                                        setSyncLogs([]);
+                                        window.electron.syncWithProgress({ pushEncounters, pushInventoryLogs }).catch(() => {
+                                            setIsSyncingProgress(false);
+                                        });
+                                    }}
+                                    className="flex items-center gap-2 px-5 py-2.5 bg-green-600 text-white rounded-xl font-bold hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm transition-all"
+                                >
+                                    {isSyncingProgress
+                                        ? <><RefreshCw size={14} className="animate-spin"/> Đang đẩy...</>
+                                        : <><Upload size={14}/> Bắt đầu đẩy</>
+                                    }
+                                </button>
+                                {isSyncingProgress && (
+                                    <div className="flex-1 flex flex-col gap-1">
+                                        <div className="flex justify-between text-xs text-blue-500 font-medium">
+                                            <span className="animate-pulse">Đang xử lý...</span>
+                                            <span className="font-mono">{syncProgressText}</span>
+                                        </div>
+                                        <div className="bg-gray-100 rounded-full h-2 overflow-hidden">
+                                            <div
+                                                className="h-full bg-blue-500 rounded-full transition-all duration-300"
+                                                style={{ width: `${syncProgressPct}%` }}
+                                            />
+                                        </div>
+                                    </div>
+                                )}
+                                {!isSyncingProgress && syncProgressPct === 100 && (
+                                    <span className="text-sm text-green-600 font-medium">Hoàn tất!</span>
+                                )}
+                                {!syncConfig.serverUrl && (
+                                    <span className="text-xs text-amber-500">Chưa nhập Server URL</span>
+                                )}
+                            </div>
+
+                            {/* Bảng tiến độ theo ngày */}
+                            {pushStatusRows.length > 0 && (() => {
+                                const groups: Record<string, typeof pushStatusRows> = {};
+                                for (const row of pushStatusRows) {
+                                    const [year, month] = row.date.split('-');
+                                    const key = `${month}/${year}`;
+                                    if (!groups[key]) groups[key] = [];
+                                    groups[key].push(row);
+                                }
+                                return (
+                                    <div className="space-y-4 mt-1">
+                                        {Object.entries(groups).sort((a, b) => b[0].localeCompare(a[0])).map(([monthLabel, rows]) => {
+                                            const mTotal  = rows.reduce((s, r) => s + r.total, 0);
+                                            const mPushed = rows.reduce((s, r) => s + r.pushed, 0);
+                                            return (
+                                                <div key={monthLabel}>
+                                                    <div className="flex items-center justify-between mb-1.5">
+                                                        <span className="text-xs font-bold text-gray-500 uppercase tracking-wide">Tháng {monthLabel}</span>
+                                                        <span className="text-xs text-gray-400">{mPushed}/{mTotal} ca</span>
+                                                    </div>
+                                                    <div className="space-y-1.5">
+                                                        {rows.map(row => {
+                                                            const pct = row.total > 0 ? Math.round((row.pushed / row.total) * 100) : 0;
+                                                            const done = row.pending === 0;
+                                                            return (
+                                                                <div key={row.date} className="flex items-center gap-3">
+                                                                    <span className="text-xs font-mono text-gray-500 w-12 shrink-0">
+                                                                        {row.date.slice(8, 10)}/{row.date.slice(5, 7)}
+                                                                    </span>
+                                                                    <div className="flex-1 bg-gray-100 rounded-full h-2.5 overflow-hidden">
+                                                                        <div
+                                                                            className={`h-full rounded-full transition-all duration-500 ${done ? 'bg-green-500' : 'bg-blue-400'}`}
+                                                                            style={{ width: `${pct}%` }}
+                                                                        />
+                                                                    </div>
+                                                                    <span className={`text-xs font-mono w-16 text-right shrink-0 ${done ? 'text-green-600 font-bold' : 'text-gray-500'}`}>
+                                                                        {row.pushed}/{row.total}{done ? ' ✓' : ''}
+                                                                    </span>
+                                                                </div>
+                                                            );
+                                                        })}
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                );
+                            })()}
+                        </div>
+                    </div>
+
+                    {/* ── Nhật ký đồng bộ ── */}
+                    {syncLogs.length > 0 && (
+                        <div className="border border-gray-200 rounded-xl overflow-hidden">
+                            <div className="px-4 py-3 bg-gray-50 border-b border-gray-200 flex items-center justify-between">
+                                <p className="font-bold text-sm text-gray-700">Nhật ký đồng bộ</p>
+                                <button
+                                    onClick={() => setSyncLogs([])}
+                                    className="text-xs text-gray-400 hover:text-gray-600"
+                                >
+                                    Xóa
+                                </button>
+                            </div>
+                            <div className="px-4 py-3 max-h-52 overflow-y-auto space-y-0.5 font-mono text-xs text-gray-600">
+                                {syncLogs.map((msg, i) => (
+                                    <div key={i} className={`py-0.5 ${msg.startsWith('❌') ? 'text-red-500' : msg.startsWith('⚠️') ? 'text-amber-600' : ''}`}>
+                                        {msg}
+                                    </div>
+                                ))}
+                            </div>
                         </div>
                     )}
 
-                    {/* Toggle bật/tắt */}
-                    <div className="flex items-center justify-between bg-gray-50 border border-gray-200 rounded-xl p-4">
-                        <div>
-                            <p className="font-bold text-gray-700">Kích hoạt đồng bộ / 启用同步</p>
-                            <p className="text-sm text-gray-500">Bật để tự động gửi dữ liệu lên server khi có kết nối</p>
-                        </div>
-                        <button
-                            onClick={() => setSyncConfig(c => ({ ...c, enabled: !c.enabled }))}
-                            className={`relative w-14 h-7 rounded-full transition-colors ${syncConfig.enabled ? 'bg-blue-600' : 'bg-gray-300'}`}
-                        >
-                            <span className={`absolute top-1 w-5 h-5 bg-white rounded-full shadow transition-transform ${syncConfig.enabled ? 'translate-x-8' : 'translate-x-1'}`}/>
-                        </button>
-                    </div>
-
-                    {/* Server URL */}
-                    <div>
-                        <label className="block text-sm font-bold text-gray-700 mb-1">Server URL</label>
-                        <input
-                            type="text"
-                            value={syncConfig.serverUrl}
-                            onChange={e => setSyncConfig(c => ({ ...c, serverUrl: e.target.value }))}
-                            placeholder="https://server.company.com"
-                            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
-                        />
-                    </div>
-
-                    {/* API Key */}
-                    <div>
-                        <label className="block text-sm font-bold text-gray-700 mb-1">API Key / Token</label>
-                        <input
-                            type="password"
-                            value={syncConfig.apiKey}
-                            onChange={e => setSyncConfig(c => ({ ...c, apiKey: e.target.value }))}
-                            placeholder="••••••••••••••••"
-                            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
-                        />
-                    </div>
-
-                    {/* Chu kỳ retry */}
-                    <div>
-                        <label className="block text-sm font-bold text-gray-700 mb-1">
-                            Chu kỳ đồng bộ lại (phút)
-                            <span className="ml-2 text-gray-400 font-normal">— quét và gửi lại các bản ghi chưa sync</span>
-                        </label>
-                        <select
-                            value={syncConfig.retryIntervalMinutes}
-                            onChange={e => setSyncConfig(c => ({ ...c, retryIntervalMinutes: Number(e.target.value) }))}
-                            className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
-                        >
-                            {[1, 3, 5, 10, 15, 30].map(v => (
-                                <option key={v} value={v}>{v} phút</option>
-                            ))}
-                        </select>
-                    </div>
-
-                    {/* Sync nhân viên */}
-                    <div className="bg-gray-50 border border-gray-200 rounded-xl p-4 flex flex-col gap-3">
-                        <p className="font-bold text-sm text-gray-700">Đồng bộ danh sách nhân viên / 同步员工名单</p>
-                        <div className="flex items-center justify-between">
-                            <div>
-                                <p className="text-sm text-gray-600">Sync ngay khi khởi động app / 启动时同步</p>
-                                <p className="text-xs text-gray-400">Đảm bảo Kiosk nhận ra nhân viên mới</p>
-                            </div>
-                            <button
-                                onClick={() => setSyncConfig(c => ({ ...c, syncEmployeesOnStartup: !c.syncEmployeesOnStartup }))}
-                                className={`relative w-14 h-7 rounded-full transition-colors ${syncConfig.syncEmployeesOnStartup ? 'bg-blue-600' : 'bg-gray-300'}`}
-                            >
-                                <span className={`absolute top-1 w-5 h-5 bg-white rounded-full shadow transition-transform ${syncConfig.syncEmployeesOnStartup ? 'translate-x-8' : 'translate-x-1'}`}/>
-                            </button>
-                        </div>
-                        <div className="flex items-center gap-3">
-                            <label className="text-sm text-gray-600 whitespace-nowrap">Chu kỳ sync nhân viên / 员工同步周期:</label>
-                            <select
-                                value={syncConfig.employeeSyncIntervalHours}
-                                onChange={e => setSyncConfig(c => ({ ...c, employeeSyncIntervalHours: Number(e.target.value) }))}
-                                className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
-                            >
-                                {[1, 2, 4, 8, 12, 24].map(v => (
-                                    <option key={v} value={v}>{v} giờ</option>
-                                ))}
-                            </select>
-                        </div>
-                    </div>
-
-                    {/* Test kết nối */}
-                    <div className="flex items-center gap-3">
-                        <button
-                            onClick={handleTestConnection}
-                            disabled={!syncConfig.serverUrl || syncTestStatus === 'loading'}
-                            className="flex items-center gap-2 px-4 py-2 border border-blue-500 text-blue-600 rounded-lg font-bold hover:bg-blue-50 disabled:opacity-40 disabled:cursor-not-allowed"
-                        >
-                            {syncTestStatus === 'loading'
-                                ? <><RefreshCw size={16} className="animate-spin"/> Đang kiểm tra / 检测中...</>
-                                : <><Wifi size={16} className="shrink-0"/><span>Test kết nối<span className="block text-[9px] font-normal opacity-80 leading-tight">测试连接</span></span></>
-                            }
-                        </button>
-                        {syncTestStatus === 'success' && (
-                            <span className="flex items-center gap-1 text-sm text-green-600 font-medium">
-                                <Check size={16}/> {syncTestMessage}
-                            </span>
-                        )}
-                        {syncTestStatus === 'error' && (
-                            <span className="flex items-center gap-1 text-sm text-red-600 font-medium">
-                                <WifiOff size={16}/> {syncTestMessage}
-                            </span>
-                        )}
-                    </div>
-
-                    {/* Lưu cấu hình */}
-                    <div className="flex gap-2">
-                        <button
-                            onClick={handleSaveSyncConfig}
-                            className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 transition-all"
-                        >
-                            {syncSaved ? <><Check size={18}/> Đã lưu! / 已保存</> : <><Check size={18} className="shrink-0"/><span>Lưu cấu hình<span className="block text-[9px] font-normal opacity-80 leading-tight">保存配置</span></span></>}
-                        </button>
-                        {syncConfig.enabled && (
-                            <button
-                                onClick={handleSyncNow}
-                                disabled={syncTestStatus === 'loading'}
-                                className="px-4 py-3 bg-green-600 text-white rounded-xl font-bold hover:bg-green-700 transition-all disabled:opacity-50 text-sm"
-                                title="Đồng bộ ngay"
-                            >
-                                {syncTestStatus === 'loading' ? '...' : 'Sync ngay'}
-                            </button>
-                        )}
-                    </div>
-
-                    <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 text-sm text-blue-700">
-                        <p className="font-bold mb-1">Lưu ý:</p>
-                        <ul className="list-disc list-inside space-y-1 text-blue-600">
-                            <li>App vẫn hoạt động bình thường khi tắt sync hoặc mất mạng</li>
-                            <li>Dữ liệu chưa sync sẽ được tự động gửi lại theo chu kỳ đã cài</li>
-                            <li>Medicine chỉ đồng bộ 1 chiều: Spoke → Server (không chỉnh sửa từ server)</li>
-                        </ul>
-                    </div>
                 </div>
             )}
 

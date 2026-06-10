@@ -159,8 +159,7 @@ export const Layout: React.FC<LayoutProps> = ({
 
             <div className="h-6 w-px bg-gray-300 mx-2"></div>
 
-            {/* Giữ nguyên SyncControl của bạn */}
-            <SyncControl stationConfig={stationConfig} />
+            <SyncControl />
 
             <div className="h-6 w-px bg-gray-300 mx-2"></div>
             <div className="flex items-center px-3 py-1.5 bg-green-50 text-green-700 border border-green-200 rounded-full text-xs font-bold shadow-sm">

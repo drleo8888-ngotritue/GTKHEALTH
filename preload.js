@@ -94,4 +94,10 @@ contextBridge.exposeInMainWorld('electron', {
   // --- SPOKE: Nhận phác đồ mới từ server (real-time) ---
   onSpokeProtocolsUpdate: (callback) => ipcRenderer.on('spoke:protocols-update', (_event, data) => callback(data)),
   removeSpokeProtocolsListener: () => ipcRenderer.removeAllListeners('spoke:protocols-update'),
+
+  // --- SYNC PROGRESS MODAL ---
+  getPushStatus:              ()         => ipcRenderer.invoke('sync:get-push-status'),
+  syncWithProgress:           (options)  => ipcRenderer.invoke('sync:push-with-progress', options),
+  onSyncProgress:             (callback) => ipcRenderer.on('sync:progress-update', (_event, data) => callback(data)),
+  removeSyncProgressListener: ()         => ipcRenderer.removeAllListeners('sync:progress-update'),
 });

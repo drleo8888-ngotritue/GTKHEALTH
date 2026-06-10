@@ -1,70 +1,82 @@
 import React, { useState, useEffect } from 'react';
-import { StationConfig } from '../types';
-import { RefreshCw, CheckCircle2, WifiOff } from 'lucide-react';
+import { CheckCircle2, WifiOff, RefreshCw } from 'lucide-react';
 
-interface SyncControlProps {
-  stationConfig: StationConfig;
+interface ProgressUpdate {
+  totalProcessed: number;
+  totalToSync: number;
+  done: boolean;
 }
 
 const LS_KEY = 'gvc_last_server_sync_time';
 
-export const SyncControl: React.FC<SyncControlProps> = ({ stationConfig }) => {
-  const [isSyncing, setIsSyncing] = useState(false);
+export const SyncControl: React.FC = () => {
+  const [isSyncing, setIsSyncing]   = useState(false);
   const [lastSynced, setLastSynced] = useState<string | null>(null);
-  const [syncError, setSyncError] = useState(false);
+  const [syncError, setSyncError]   = useState(false);
+  const [progress, setProgress]     = useState<{ processed: number; total: number } | null>(null);
 
   useEffect(() => {
     const saved = localStorage.getItem(LS_KEY);
     if (saved) setLastSynced(saved);
-
     if (!window.electron) return;
-    window.electron.onServerSyncTime((time: string) => {
+
+    window.electron.onServerSyncTime?.((time: string) => {
       setLastSynced(time);
       setSyncError(false);
       localStorage.setItem(LS_KEY, time);
     });
-    return () => window.electron.removeServerSyncTimeListener?.();
+
+    window.electron.onSyncProgress?.((data: ProgressUpdate) => {
+      setProgress({ processed: data.totalProcessed, total: data.totalToSync });
+      if (data.done) {
+        setIsSyncing(false);
+        const t = new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+        setLastSynced(t);
+        setSyncError(false);
+        localStorage.setItem(LS_KEY, t);
+      } else {
+        setIsSyncing(true);
+      }
+    });
+
+    return () => {
+      window.electron.removeServerSyncTimeListener?.();
+      window.electron.removeSyncProgressListener?.();
+    };
   }, []);
 
-  const handleSyncNow = async () => {
-    if (isSyncing || !window.electron) return;
-    setIsSyncing(true);
-    setSyncError(false);
-    try {
-      await window.electron.syncNow();
-    } catch {
-      setSyncError(true);
-    } finally {
-      setIsSyncing(false);
-    }
-  };
+  const syncPct = progress && progress.total > 0
+    ? Math.round((progress.processed / progress.total) * 100)
+    : 0;
 
   return (
     <div className="flex items-center gap-3">
-      <div className="text-right hidden md:block">
-        <p className="text-[10px] text-gray-400 uppercase font-bold tracking-wider">Đồng bộ cuối / 最后同步</p>
-        <p className={`text-xs font-mono font-bold ${syncError ? 'text-red-500' : 'text-gray-600'}`}>
-          {lastSynced || '--:--'}
-        </p>
-      </div>
+      {/* Mini progress bar — visible in navbar while sync runs from Admin page */}
+      {isSyncing && progress && progress.total > 0 && (
+        <div className="hidden md:flex flex-col gap-0.5 min-w-[90px]">
+          <div className="flex justify-between items-center text-[10px] font-mono text-blue-500">
+            <span className="animate-pulse">Đang sync</span>
+            <span>{progress.processed}/{progress.total}</span>
+          </div>
+          <div className="bg-gray-200 rounded-full h-1.5 overflow-hidden">
+            <div
+              className="h-full bg-blue-400 rounded-full transition-all duration-300"
+              style={{ width: `${syncPct}%` }}
+            />
+          </div>
+        </div>
+      )}
 
-      <button
-        onClick={handleSyncNow}
-        disabled={isSyncing}
-        title="Đồng bộ lên máy chủ ngay"
-        className="flex items-center px-3 py-2 rounded-xl font-bold shadow-sm transition-all active:scale-95 disabled:opacity-60 disabled:cursor-wait bg-green-600 hover:bg-green-700 text-white"
-      >
+      {/* Status chip */}
+      <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gray-100 text-xs text-gray-600">
         {isSyncing
-          ? <RefreshCw size={16} className="animate-spin mr-1.5" />
+          ? <RefreshCw size={13} className="animate-spin text-blue-500" />
           : syncError
-            ? <WifiOff size={16} className="mr-1.5" />
-            : <CheckCircle2 size={16} className="mr-1.5" />
+            ? <WifiOff size={13} className="text-red-500" />
+            : <CheckCircle2 size={13} className="text-green-500" />
         }
-        <span className="text-sm">
-          Sync
-          <span className="block text-[9px] font-normal opacity-80 leading-tight">同步</span>
-        </span>
-      </button>
+        <span className="font-mono font-medium">{lastSynced || '--:--'}</span>
+      </div>
     </div>
   );
 };

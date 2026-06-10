@@ -139,6 +139,27 @@ router.post('/medicine-report', async (req, res) => {
   }
 });
 
+// POST /api/sync/check-exists — kiểm tra batch tối đa 10 IDs có trên server chưa
+router.post('/check-exists', async (req, res) => {
+  const { ids } = req.body;
+  if (!Array.isArray(ids) || ids.length === 0) {
+    return res.json({ success: true, existing: [], missing: [] });
+  }
+  const limited = ids.slice(0, 10);
+  const placeholders = limited.map(() => '?').join(',');
+  try {
+    const rows = await db.all(
+      `SELECT id FROM encounters WHERE id IN (${placeholders})`,
+      limited
+    );
+    const existing = rows.map(r => r.id);
+    const missing = limited.filter(id => !existing.includes(id));
+    res.json({ success: true, existing, missing });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
 // GET /api/sync/employees — tất cả trạm kéo về
 router.get('/employees', async (req, res) => {
   try {

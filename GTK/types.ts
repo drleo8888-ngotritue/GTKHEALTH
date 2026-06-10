@@ -168,6 +168,28 @@ declare global {
       // Real-time Listeners
       onDataUpdate: (callback: (data: any) => void) => void;
       removeDataUpdateListener: () => void;
+
+      // Server sync
+      syncNow: () => Promise<any>;
+      getUnsyncedCount: () => Promise<any>;
+      updateServerSyncConfig: (config: any) => Promise<any>;
+      updateServerStationConfig: (s: any) => Promise<any>;
+      pullEmployees: () => Promise<any>;
+      onServerSyncTime: (callback: (time: string) => void) => void;
+      removeServerSyncTimeListener: () => void;
+      deleteEncounter: (id: string) => Promise<any>;
+      queryServerEncounters: (params: any) => Promise<any>;
+      pushProtocolsToServer: (protocols: any[]) => Promise<any>;
+      onSpokeProtocolsUpdate: (callback: (data: any) => void) => void;
+      removeSpokeProtocolsListener: () => void;
+
+      // Sync Progress Modal
+      getPushStatus: () => Promise<any[]>;
+      syncWithProgress: (options?: { pushEncounters?: boolean; pushInventoryLogs?: boolean }) => Promise<any>;
+      onSyncProgress: (callback: (data: any) => void) => void;
+      removeSyncProgressListener: () => void;
+
+      [key: string]: any;
     };
   }
 }

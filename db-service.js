@@ -985,6 +985,66 @@ module.exports = {
     return inserted;
   },
 
+  // === SYNC PROGRESS: Lấy trạng thái push nhóm theo ngày ===
+  getPushStatusByDate: async () => {
+    const rows = await getQuery(
+      `SELECT
+         date(start_time / 1000, 'unixepoch', 'localtime') as date,
+         COUNT(*) as total,
+         SUM(CASE WHEN is_synced_server = 1 THEN 1 ELSE 0 END) as pushed
+       FROM encounters
+       WHERE status NOT IN ('WAITING', 'IN_PROGRESS')
+       GROUP BY date
+       ORDER BY date DESC`
+    );
+    return rows.map(r => ({
+      date:    r.date,
+      total:   r.total,
+      pushed:  r.pushed || 0,
+      pending: r.total - (r.pushed || 0),
+    }));
+  },
+
+  // === SYNC PROGRESS: Lấy toàn bộ inventory logs chưa sync (cho manual push) ===
+  getAllInventoryLogsForSync: async () => {
+    try { await runQuery(`ALTER TABLE inventory_logs ADD COLUMN is_synced_server INTEGER DEFAULT 0`); } catch (_) {}
+    const rows = await getQuery(
+      `SELECT * FROM inventory_logs
+       WHERE is_synced_server = 0 OR is_synced_server IS NULL
+       ORDER BY timestamp DESC`
+    );
+    return rows.map(r => ({ ...r, items: JSON.parse(r.items || '[]') }));
+  },
+
+  // === SYNC PROGRESS: Lấy toàn bộ ca đã hoàn thành, chưa sync, DESC để push mới nhất trước ===
+  getAllCompletedForSync: async () => {
+    try { await runQuery(`ALTER TABLE encounters ADD COLUMN is_synced_server INTEGER DEFAULT 0`); } catch (_) {}
+    const rows = await getQuery(
+      `SELECT e.*, GROUP_CONCAT(ce.id||'|'||ce.action_type||'|'||ce.actor_name||'|'||ce.details||'|'||ce.timestamp, ';;') as events_raw
+       FROM encounters e
+       LEFT JOIN clinical_events ce ON ce.encounter_id = e.id
+       WHERE e.status NOT IN ('WAITING', 'IN_PROGRESS')
+         AND (e.is_synced_server = 0 OR e.is_synced_server IS NULL)
+       GROUP BY e.id
+       ORDER BY e.start_time DESC`
+    );
+    return rows.map(r => {
+      const clinical_events = r.events_raw
+        ? r.events_raw.split(';;').map(s => {
+            const [id, action_type, actor_name, details, timestamp] = s.split('|');
+            return { id, action_type, actor_name, details, timestamp: Number(timestamp) };
+          })
+        : [];
+      const { events_raw, ...enc } = r;
+      return {
+        ...enc,
+        symptoms:       JSON.parse(enc.symptoms      || '[]'),
+        prescriptions:  JSON.parse(enc.prescriptions || '[]'),
+        clinical_events,
+      };
+    });
+  },
+
   // === RESET DỮ LIỆU ===
   resetData: async (type) => {
     // type: 'MEDICINE' | 'SUPPLY' | 'ALL'

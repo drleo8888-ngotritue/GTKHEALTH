@@ -77,6 +77,7 @@ function createWindow() {
 // SERVER SYNC — chạy hoàn toàn trong main process, không crash app khi lỗi
 // ---------------------------------------------------------------------------
 let _retryTimer = null;
+let _syncProgressRunning = false; // flag: modal progress đang chạy → doServerSync nhường encounter push
 
 // Lưu/đọc trạng thái sync vào file (tồn tại qua app restart)
 function _syncSettingsPath() {
@@ -144,20 +145,23 @@ async function doServerSync() {
   if (!cfg.enabled || !cfg.serverUrl) return;
 
   try {
-    // PUSH encounters
-    const encounters = await dbService.getUnsyncedEncounters();
-    if (encounters.length > 0) {
-      console.log(`⬆️ [SYNC] Đang push ${encounters.length} ca khám lên server...`);
-      const res = await syncServer.pushEncounters(encounters);
-      if (res?.success && Array.isArray(res.received_ids) && res.received_ids.length > 0) {
-        await dbService.markEncountersSynced(res.received_ids);
-        console.log(`✅ [SYNC] Push ca khám: ${res.received_ids.length} đã xác nhận.`);
-      } else if (res?.success) {
-        // Server thành công nhưng không trả received_ids → mark tất cả
-        await dbService.markEncountersSynced(encounters.map(e => e.id));
-        console.log(`✅ [SYNC] Push ca khám: ${encounters.length} đã gửi.`);
-      } else {
-        console.warn('⚠️ [SYNC] Push ca khám thất bại hoặc server không phản hồi.');
+    // PUSH encounters — nhường cho syncWithProgress nếu đang chạy
+    if (_syncProgressRunning) {
+      console.log('ℹ️ [SYNC] Modal progress đang chạy, bỏ qua encounter push lần này.');
+    } else {
+      const encounters = await dbService.getUnsyncedEncounters();
+      if (encounters.length > 0) {
+        console.log(`⬆️ [SYNC] Đang push ${encounters.length} ca khám lên server...`);
+        const res = await syncServer.pushEncounters(encounters);
+        if (res?.success && Array.isArray(res.received_ids) && res.received_ids.length > 0) {
+          await dbService.markEncountersSynced(res.received_ids);
+          console.log(`✅ [SYNC] Push ca khám: ${res.received_ids.length} đã xác nhận.`);
+        } else if (res?.success) {
+          await dbService.markEncountersSynced(encounters.map(e => e.id));
+          console.log(`✅ [SYNC] Push ca khám: ${encounters.length} đã gửi.`);
+        } else {
+          console.warn('⚠️ [SYNC] Push ca khám thất bại hoặc server không phản hồi.');
+        }
       }
     }
 
@@ -1053,6 +1057,121 @@ ipcMain.handle('server-sync:sync-now', async () => {
   await doServerSync();
   const count = await dbService.getUnsyncedCount();
   return { success: true, unsyncedCount: count };
+});
+
+// === SYNC WITH PROGRESS ===
+
+// Trả về trạng thái push theo ngày (cho modal lần đầu mở)
+ipcMain.handle('sync:get-push-status', async () => {
+  try {
+    return await dbService.getPushStatusByDate();
+  } catch (err) {
+    console.error('❌ Lỗi lấy push status:', err.message);
+    return [];
+  }
+});
+
+// Push dữ liệu lịch sử lên server — batch 10, check-exists, DESC
+// options: { pushEncounters: bool, pushInventoryLogs: bool }
+ipcMain.handle('sync:push-with-progress', async (event, options = {}) => {
+  const cfg = syncServer.getSyncConfig();
+  if (!cfg.serverUrl) {
+    return { success: false, message: 'Chưa nhập Server URL. Vào Cấu hình để thiết lập.' };
+  }
+  if (_syncProgressRunning) {
+    return { success: false, message: 'Đang đồng bộ, vui lòng chờ.' };
+  }
+
+  const { pushEncounters = true, pushInventoryLogs = false } = options;
+  _syncProgressRunning = true;
+
+  const emit = async (encounterRows, logStats, processed, total, done, logMessage) => {
+    if (event.sender.isDestroyed()) return;
+    event.sender.send('sync:progress-update', {
+      encounterRows, logStats, totalProcessed: processed, totalToSync: total, done, logMessage,
+    });
+  };
+
+  try {
+    const allEncounters = pushEncounters  ? await dbService.getAllCompletedForSync()       : [];
+    const allLogs       = pushInventoryLogs ? await dbService.getAllInventoryLogsForSync() : [];
+    const total = allEncounters.length + allLogs.length;
+
+    let encounterRows = await dbService.getPushStatusByDate();
+    let logStats = { total: allLogs.length, pushed: 0 };
+
+    await emit(encounterRows, logStats, 0, total, total === 0, null);
+    if (total === 0) return { success: true, pushed: 0 };
+
+    let processed = 0;
+
+    // ── Phase 1: Encounters ──
+    for (let i = 0; i < allEncounters.length; i += 10) {
+      const batch    = allEncounters.slice(i, i + 10);
+      const batchIds = batch.map(e => e.id);
+      let logMessage = null;
+
+      try {
+        const checkRes    = await syncServer.checkEncountersExist(batchIds);
+        const existingSet = new Set(checkRes?.existing || []);
+        const missingBatch = batch.filter(e => !existingSet.has(e.id));
+
+        if (missingBatch.length > 0) {
+          const res = await syncServer.pushEncounters(missingBatch);
+          if (res?.success) {
+            const confirmed = res.received_ids?.length ? res.received_ids : missingBatch.map(e => e.id);
+            await dbService.markEncountersSynced(confirmed);
+            logMessage = `✅ Ca khám: đẩy ${confirmed.length} ca${existingSet.size > 0 ? `, ${existingSet.size} đã có` : ''}`;
+          } else {
+            logMessage = `⚠️ Ca khám: batch ${Math.floor(i / 10) + 1} — server không phản hồi`;
+          }
+        } else {
+          logMessage = `ℹ️ Ca khám: ${batchIds.length} ca đã có trên server`;
+        }
+        if (existingSet.size > 0) await dbService.markEncountersSynced([...existingSet]);
+      } catch (e) {
+        logMessage = `❌ Ca khám: batch ${Math.floor(i / 10) + 1} lỗi — ${e.message}`;
+      }
+
+      processed = Math.min(i + 10, allEncounters.length);
+      await new Promise(r => setTimeout(r, 200));
+      encounterRows = await dbService.getPushStatusByDate();
+      await emit(encounterRows, logStats, processed, total, false, logMessage);
+    }
+
+    // ── Phase 2: Inventory logs ──
+    for (let i = 0; i < allLogs.length; i += 10) {
+      const batch = allLogs.slice(i, i + 10);
+      let logMessage = null;
+
+      try {
+        const res = await syncServer.pushInventoryLogs(batch);
+        if (res?.success) {
+          const confirmed = res.received_ids?.length ? res.received_ids : batch.map(l => l.id);
+          await dbService.markInventoryLogsSynced(confirmed);
+          logStats.pushed += confirmed.length;
+          logMessage = `✅ Kho: đẩy ${confirmed.length} giao dịch`;
+        } else {
+          logMessage = `⚠️ Kho: batch ${Math.floor(i / 10) + 1} — server không phản hồi`;
+        }
+      } catch (e) {
+        logMessage = `❌ Kho: batch ${Math.floor(i / 10) + 1} lỗi — ${e.message}`;
+      }
+
+      processed = allEncounters.length + Math.min(i + 10, allLogs.length);
+      await new Promise(r => setTimeout(r, 200));
+      await emit(encounterRows, { ...logStats }, processed, total, false, logMessage);
+    }
+
+    await emit(encounterRows, logStats, total, total, true,
+      `🎉 Hoàn tất — ${allEncounters.length} ca khám, ${allLogs.length} giao dịch kho`);
+    return { success: true, pushed: total };
+  } catch (err) {
+    console.error('❌ Lỗi sync with progress:', err.message);
+    return { success: false, message: err.message };
+  } finally {
+    _syncProgressRunning = false;
+  }
 });
 
 // Renderer gọi khi khởi động — lấy danh sách nhân viên mới nhất từ server

@@ -261,6 +261,14 @@ declare global {
       // App Update
       applyUpdate: () => Promise<{ success: boolean; canceled?: boolean; message?: string }>;
       getVersion: () => Promise<string>;
+
+      // Sync Progress (manual push from Admin)
+      getPushStatus: () => Promise<{ date: string; total: number; pushed: number; pending: number }[]>;
+      syncWithProgress: (options?: { pushEncounters?: boolean; pushInventoryLogs?: boolean }) => Promise<any>;
+      onSyncProgress: (callback: (data: any) => void) => void;
+      removeSyncProgressListener?: () => void;
+
+      [key: string]: any;
     };
   }
 }

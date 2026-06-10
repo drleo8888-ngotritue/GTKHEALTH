@@ -163,6 +163,12 @@ async function confirmTransfer(transferId) {
   return request('POST', `/api/spoke/transfers/${transferId}/confirm`, {});
 }
 
+// Kiểm tra batch IDs đã có trên server chưa (tối đa 10)
+async function checkEncountersExist(ids) {
+  if (!Array.isArray(ids) || ids.length === 0) return { existing: [], missing: [] };
+  return request('POST', '/api/sync/check-exists', { ids });
+}
+
 // Hub đẩy phác đồ lên server
 async function pushProtocols(protocols) {
   if (!protocols.length) return null;
@@ -196,4 +202,5 @@ module.exports = {
   confirmTransfer,
   pushProtocols,
   pullProtocols,
+  checkEncountersExist,
 };

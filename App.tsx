@@ -394,7 +394,7 @@ const MainApp = () => {
 
   // Lãnh đạo: chỉ được ở 3 tab này; chặn mọi điều hướng sang tab khác (kể cả quick-link)
   const leader = !!currentUser.leaderView;
-  const allowedLeaderTabs = ['dashboard', 'inventory', 'reports'];
+  const allowedLeaderTabs = ['dashboard', 'inventory', 'reports', 'admin'];
   const safeSetActiveTab = (tab: string) => {
     if (leader && !allowedLeaderTabs.includes(tab)) return;
     setActiveTab(tab);

@@ -89,9 +89,9 @@ export const Layout: React.FC<LayoutProps> = ({
           <SidebarItem id="inventory" label="Kho dược / 药房" icon={Pill} active={activeTab === 'inventory'} onClick={onTabChange} />
           <SidebarItem id="reports" label="Báo cáo / 报告" icon={BarChart3} active={activeTab === 'reports'} onClick={onTabChange} />
 
-          {!leader && <>
           <div className="my-4 border-t border-gray-100"></div>
 
+          {!leader && <>
           {/* --- 🔥 NÚT MỞ KIOSK (CẬP NHẬT MỚI) --- */}
           <div className="px-1 mb-2">
              <p className="px-2 text-[10px] font-bold text-gray-400 uppercase mb-2">Mở rộng / 扩展</p>
@@ -109,9 +109,10 @@ export const Layout: React.FC<LayoutProps> = ({
           </div>
 
           <div className="my-2 border-t border-gray-100"></div>
-
-          <SidebarItem id="admin" label="Cấu hình / 设置" icon={Settings} active={activeTab === 'admin'} onClick={onTabChange} />
           </>}
+
+          {/* Cấu hình — lãnh đạo vẫn vào được */}
+          <SidebarItem id="admin" label="Cấu hình / 设置" icon={Settings} active={activeTab === 'admin'} onClick={onTabChange} />
           <div className="px-4 pt-1 pb-2">
             <span className="text-xs text-gray-400 font-semibold select-none">v{__APP_VERSION__}</span>
           </div>

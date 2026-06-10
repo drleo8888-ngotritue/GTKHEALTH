@@ -85,8 +85,11 @@ contextBridge.exposeInMainWorld('electron', {
   // --- HUB: Lấy tồn kho snapshot của một trạm Spoke ---
   getHubSpokeStock: (stationName) => ipcRenderer.invoke('hub:get-spoke-stock', stationName),
 
-  // --- HUB: Query ca khám từ server theo khoảng thời gian ---
+  // --- HUB: Query ca khám từ server theo khoảng thời gian (hỗ trợ phân trang + filter) ---
   queryServerEncounters: (params) => ipcRenderer.invoke('hub:query-server-encounters', params),
+
+  // --- HUB: Số liệu tổng hợp KPI từ server ---
+  getHubSummary: (params) => ipcRenderer.invoke('hub:get-summary', params),
 
   // --- HUB: Đẩy phác đồ lên server ---
   pushProtocolsToServer: (protocols) => ipcRenderer.invoke('hub:push-protocols', protocols),

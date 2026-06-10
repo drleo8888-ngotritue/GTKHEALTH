@@ -253,7 +253,8 @@ declare global {
       removeServerSyncTimeListener?: () => void;
       createServerTransfer: (data: { targetStation: string; medicines: any[]; note?: string; createdBy?: string }) => Promise<{ success: boolean; id?: string; message?: string }>;
       getHubSpokeStock: (stationName: string) => Promise<{ success: boolean; data: any[]; message?: string }>;
-      queryServerEncounters: (params: { from?: number; to?: number; stationId?: string }) => Promise<{ success: boolean; data: any[]; message?: string }>;
+      queryServerEncounters: (params: { from?: number; to?: number; stationId?: string; stationName?: string; limit?: number; offset?: number; diseaseGroup?: string; diseaseGroupNot?: string; status?: string; hadRest?: boolean }) => Promise<{ success: boolean; data: any[]; total?: number; message?: string }>;
+      getHubSummary: (params: { from?: number; to?: number; stationId?: string; stationName?: string }) => Promise<{ success: boolean; data: { total_encounters: number; by_station: any[]; by_disease_group: any[]; transfers: number; ever_rested: number; currently_resting: number } | null; message?: string }>;
       pushProtocolsToServer: (protocols: any[]) => Promise<{ success: boolean; count?: number; message?: string }>;
       onSpokeProtocolsUpdate: (callback: (protocols: any[]) => void) => void;
       removeSpokeProtocolsListener?: () => void;

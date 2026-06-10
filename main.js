@@ -838,10 +838,13 @@ ipcMain.handle('hub:get-spoke-stock', async (event, stationName) => {
 });
 
 // === HUB: Query ca khám từ server theo khoảng thời gian (không lưu local) ===
-ipcMain.handle('hub:query-server-encounters', async (event, { from, to, stationId } = {}) => {
+// opts: { from, to, stationId, limit, offset, diseaseGroup, diseaseGroupNot, status, hadRest }
+ipcMain.handle('hub:query-server-encounters', async (event, opts = {}) => {
   try {
-    console.log(`🔍 [HUB] Query encounters từ server: from=${from ? new Date(from).toLocaleDateString('vi-VN') : 'đầu'} to=${to ? new Date(to).toLocaleDateString('vi-VN') : 'cuối'}`);
-    const raw = await syncServer.pullHubEncounters(from, to, stationId);
+    const { from, to } = opts;
+    console.log(`🔍 [HUB] Query encounters từ server: from=${from ? new Date(from).toLocaleDateString('vi-VN') : 'đầu'} to=${to ? new Date(to).toLocaleDateString('vi-VN') : 'cuối'} limit=${opts.limit ?? '-'} offset=${opts.offset ?? '-'}`);
+    const res = await syncServer.pullHubEncounters(opts);
+    const raw = res?.success ? (res.data || []) : [];
     // Map snake_case (server DB) → camelCase (UI) để filter stationName/startTime hoạt động đúng
     const data = (raw || []).map(r => ({
       id:               r.id,
@@ -864,11 +867,22 @@ ipcMain.handle('hub:query-server-encounters', async (event, { from, to, stationI
       isSupplementary:  r.is_supplementary,
       prescriptionDate: r.prescription_date,
     }));
-    console.log(`✅ [HUB] Server trả ${data.length} ca khám`);
-    return { success: true, data };
+    console.log(`✅ [HUB] Server trả ${data.length} ca khám (total=${res?.total ?? '-'})`);
+    return { success: true, data, total: res?.total };
   } catch (err) {
     console.error('❌ Lỗi query encounters từ server:', err.message);
     return { success: false, data: [], message: err.message };
+  }
+});
+
+// === HUB: Số liệu tổng hợp (KPI) từ server — không kéo row thô ===
+ipcMain.handle('hub:get-summary', async (event, opts = {}) => {
+  try {
+    const data = await syncServer.pullHubSummary(opts);
+    return { success: !!data, data: data || null };
+  } catch (err) {
+    console.error('❌ Lỗi lấy summary từ server:', err.message);
+    return { success: false, data: null, message: err.message };
   }
 });
 

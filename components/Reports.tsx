@@ -81,6 +81,13 @@ export const Reports: React.FC<ReportsProps> = ({ stationConfig, currentUser, re
   const [knownStations, setKnownStations] = useState<{name: string, type: string}[]>(() => storage.getKnownStations());
   const [isLoading, setIsLoading] = useState(false);
   const [syncLoading, setSyncLoading] = useState(false);
+
+  // Chế độ lãnh đạo: đọc server có phân trang + KPI tổng hợp từ /hub/summary
+  const serverMode = !!currentUser.leaderView;
+  const [summary, setSummary] = useState<any>(null);
+  const [serverTotal, setServerTotal] = useState(0);
+  const [pageLoading, setPageLoading] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
   const [syncStatus, setSyncStatus] = useState<{ type: 'success' | 'error' | 'warn'; text: string } | null>(null);
 
   // Filter cho danh sách chi tiết
@@ -111,19 +118,11 @@ export const Reports: React.FC<ReportsProps> = ({ stationConfig, currentUser, re
 
   const loadData = async () => {
     setIsLoading(true);
-    // Lãnh đạo: máy không có local data → kéo encounters + tồn kho từ server
-    const serverMode = !!currentUser.leaderView;
     if (window.electron) {
         try {
             if (serverMode) {
-                const fromTs = new Date(`${startDate}T${startTime}`).getTime();
-                const toTs   = new Date(`${endDate}T${endTime}`).getTime();
-                const serverRes = await (window as any).electron.queryServerEncounters({ from: fromTs, to: toTs });
-                const serverData: any[] = (serverRes?.data || []).map((e: any) => ({ ...e, _fromServer: true }));
-                setEncounters(serverData);
-                // Dropdown trạm: dựng từ dữ liệu server
-                const names = [...new Set(serverData.map((e: any) => e.stationName).filter(Boolean))] as string[];
-                setKnownStations(names.map((n: string) => ({ name: n, type: 'SPOKE' })));
+                // Lãnh đạo: encounters (phân trang) + summary do các effect riêng lo.
+                // loadData chỉ phụ trách tồn kho (medList) ở dưới.
             } else if (stationConfig.type === StationType.HUB) {
                 // Load local trước (Hub's own), rồi merge thêm Spoke data từ server
                 const fromTs = new Date(`${startDate}T${startTime}`).getTime();
@@ -306,28 +305,7 @@ export const Reports: React.FC<ReportsProps> = ({ stationConfig, currentUser, re
   };
 
   const isPrivileged = currentUser?.role === 'ADMIN' || currentUser?.role === 'MODERATOR';
-
-  const stationFiltered = (stationConfig.type === StationType.HUB)
-    ? (filterStation === 'ALL' ? encounters : encounters.filter(e => e.stationName === filterStation))
-    : encounters.filter(e => e.stationName === stationConfig.name);
-
-  // Staff không thấy đơn bổ sung cuối kỳ; Admin/Mod thấy tất cả
-  const visibleEncounters = isPrivileged
-    ? stationFiltered
-    : stationFiltered.filter(e => !e.isSupplementary);
-
-  const periodStart = new Date(`${startDate}T${startTime}:00`).getTime();
-  const periodEnd   = new Date(`${endDate}T${endTime}:59`).getTime();
-  const periodFiltered = visibleEncounters
-    .filter(e => e.startTime >= periodStart && e.startTime <= periodEnd)
-    .sort((a, b) => a.startTime - b.startTime);
-
-  const totalExams = periodFiltered.length;
-  const totalTransfers = periodFiltered.filter(e => e.status === EncounterStatus.COMPLETED_TRANSFER).length;
-  // Tổng từng nghỉ (dù sau đó đã về làm việc)
-  const totalEverRested = periodFiltered.filter((e: any) => e.hadRestAtRoom).length;
-  // Hiện đang nghỉ tại phòng
-  const totalCurrentlyResting = periodFiltered.filter(e => e.status === EncounterStatus.REST_30 || e.status === EncounterStatus.MONITOR).length;
+  const PAGE_SIZE = 50;
 
   const parseInfectiousDiag = (diagnosis: string = '') => {
     const parts = diagnosis.split(' - ');
@@ -337,54 +315,170 @@ export const Reports: React.FC<ReportsProps> = ({ stationConfig, currentUser, re
       isolation: parts.slice(2).join(' - ') || '-'
     };
   };
-  const infectiousEncounters = periodFiltered.filter(e => e.diseaseGroup === 'Bệnh truyền nhiễm');
-  const infByGroup = { A: 0, B: 0, C: 0 };
-  infectiousEncounters.forEach(e => {
-    const g = parseInfectiousDiag(e.diagnosis).group;
-    if (g === 'A') infByGroup.A++;
-    else if (g === 'B') infByGroup.B++;
-    else if (g === 'C') infByGroup.C++;
-  });
-
-  const diseaseMap: Record<string, number> = {};
-  periodFiltered.forEach(e => {
-    const group = e.diseaseGroup || 'Chưa phân loại';
-    diseaseMap[group] = (diseaseMap[group] || 0) + 1;
-  });
-  const total = periodFiltered.length;
-  const sorted = Object.entries(diseaseMap).sort((a, b) => b[1] - a[1]);
-  const top5 = sorted.slice(0, 5);
-  const otherCount = sorted.slice(5).reduce((sum, [, v]) => sum + v, 0);
-  let pieData: { name: string; value: number }[] = top5.map(([name, value]) => ({ name, value }));
-  if (otherCount > 0) pieData.push({ name: 'Khác / 其他', value: otherCount });
-  if (pieData.length === 0) pieData.push({ name: 'Chưa có dữ liệu', value: 1 });
 
   const [tablePage, setTablePage] = React.useState(0);
-  React.useEffect(() => { setTablePage(0); }, [detailFilter, startDate, endDate, startTime, endTime, filterStation]);
+  React.useEffect(() => { setTablePage(0); }, [detailFilter, activeTopTab, startDate, endDate, startTime, endTime, filterStation]);
 
-  // Danh sách hiển thị theo bộ lọc chi tiết — mới nhất trên cùng
-  const fullDisplayList = (activeTopTab === 'infectious'
-    ? infectiousEncounters
-    : detailFilter === null
-      ? periodFiltered
-      : detailFilter.type === 'transfer'
-        ? periodFiltered.filter(e => e.status === EncounterStatus.COMPLETED_TRANSFER)
-        : detailFilter.type === 'resting'
-          ? periodFiltered.filter((e: any) => e.hadRestAtRoom)
-        : detailFilter.type === 'resting_now'
-          ? periodFiltered.filter(e => e.status === EncounterStatus.REST_30 || e.status === EncounterStatus.MONITOR)
-          : periodFiltered.filter(e => {
-              if (detailFilter.group === 'Khác / 其他') {
-                const top5Names = top5.map(([name]) => name);
-                return !top5Names.includes(e.diseaseGroup || 'Chưa phân loại');
-              }
-              return (e.diseaseGroup || 'Chưa phân loại') === detailFilter.group;
-            })
-  ).slice().reverse();
+  // ===== Lãnh đạo: KPI từ /hub/summary, danh sách chi tiết phân trang từ server =====
+  useEffect(() => {
+    if (!serverMode || !window.electron) return;
+    const fromTs = new Date(`${startDate}T${startTime}:00`).getTime();
+    const toTs   = new Date(`${endDate}T${endTime}:59`).getTime();
+    const stationName = filterStation !== 'ALL' ? filterStation : undefined;
+    (window as any).electron.getHubSummary({ from: fromTs, to: toTs, stationName }).then((res: any) => {
+      const d = res?.data || null;
+      setSummary(d);
+      if (d?.by_station?.length) {
+        setKnownStations(d.by_station.map((s: any) => ({ name: s.station_name, type: 'SPOKE' })).filter((s: any) => s.name));
+      }
+    });
+  }, [serverMode, startDate, endDate, startTime, endTime, filterStation, reloadKey]);
 
-  const PAGE_SIZE = 50;
-  const totalPages = Math.ceil(fullDisplayList.length / PAGE_SIZE);
-  const displayList = fullDisplayList.slice(tablePage * PAGE_SIZE, (tablePage + 1) * PAGE_SIZE);
+  useEffect(() => {
+    if (!serverMode || !window.electron) return;
+    const fromTs = new Date(`${startDate}T${startTime}:00`).getTime();
+    const toTs   = new Date(`${endDate}T${endTime}:59`).getTime();
+    const stationName = filterStation !== 'ALL' ? filterStation : undefined;
+
+    // Map drilldown (tab/bộ lọc) → filter phía server để phân trang đúng tập con
+    const f: any = {};
+    if (activeTopTab === 'infectious') {
+      f.diseaseGroup = 'Bệnh truyền nhiễm';
+    } else if (detailFilter) {
+      if (detailFilter.type === 'transfer')          f.status = 'COMPLETED_TRANSFER';
+      else if (detailFilter.type === 'resting')      f.hadRest = true;
+      else if (detailFilter.type === 'resting_now')  f.status = 'REST_30,MONITOR';
+      else if (detailFilter.type === 'disease') {
+        const groups = (summary?.by_disease_group || []).map((d: any) => d.disease_group);
+        const top5Names = groups.slice(0, 5);
+        if (detailFilter.group === 'Khác / 其他') {
+          f.diseaseGroupNot = top5Names.map((n: string) => n === 'Chưa phân loại' ? '__NULL__' : n).join(',');
+        } else {
+          f.diseaseGroup = detailFilter.group === 'Chưa phân loại' ? '__NULL__' : detailFilter.group;
+        }
+      }
+    }
+
+    setPageLoading(true);
+    (window as any).electron.queryServerEncounters({
+      from: fromTs, to: toTs, stationName,
+      limit: PAGE_SIZE, offset: tablePage * PAGE_SIZE,
+      ...f,
+    }).then((res: any) => {
+      setEncounters((res?.data || []).map((e: any) => ({ ...e, _fromServer: true })));
+      setServerTotal(res?.total || 0);
+    }).finally(() => setPageLoading(false));
+  }, [serverMode, startDate, endDate, startTime, endTime, filterStation, tablePage, detailFilter, activeTopTab, summary, reloadKey]);
+
+  // ===== Số liệu dẫn xuất — nhánh server (lãnh đạo) vs client (trạm/Hub) =====
+  let totalExams: number, totalTransfers: number, totalEverRested: number, totalCurrentlyResting: number;
+  const infByGroup = { A: 0, B: 0, C: 0 };
+  let infectiousEncounters: any[] = [];
+  let sorted: [string, number][];
+  let top5: [string, number][];
+  let pieData: { name: string; value: number }[];
+  let displayList: any[];
+  let totalPages: number;
+  let listTotal: number;
+  let exportRows: any[] = []; // tập ca dùng để xuất Excel (client: cả kỳ; server: fetch khi bấm)
+
+  if (serverMode) {
+    // KPI lấy từ summary (server đếm sẵn — không kéo row thô)
+    totalExams           = summary?.total_encounters  || 0;
+    totalTransfers       = summary?.transfers          || 0;
+    totalEverRested      = summary?.ever_rested        || 0;
+    totalCurrentlyResting= summary?.currently_resting  || 0;
+    sorted = (summary?.by_disease_group || []).map((d: any) => [d.disease_group, d.count] as [string, number]);
+    top5 = sorted.slice(0, 5);
+    const otherCount = sorted.slice(5).reduce((s, [, v]) => s + v, 0);
+    pieData = top5.map(([name, value]) => ({ name, value }));
+    if (otherCount > 0) pieData.push({ name: 'Khác / 其他', value: otherCount });
+    if (pieData.length === 0) pieData.push({ name: 'Chưa có dữ liệu', value: 1 });
+    // Danh sách = trang hiện tại (server đã filter + sort DESC mới nhất trước)
+    displayList = encounters;
+    listTotal   = serverTotal;
+    totalPages  = Math.ceil(serverTotal / PAGE_SIZE);
+    // Infectious A/B/C: best-effort theo trang đang xem (server không tổng hợp được phần này)
+    if (activeTopTab === 'infectious') {
+      infectiousEncounters = encounters;
+      encounters.forEach((e: any) => {
+        const g = parseInfectiousDiag(e.diagnosis).group as 'A' | 'B' | 'C';
+        if (infByGroup[g] !== undefined) infByGroup[g]++;
+      });
+    }
+  } else {
+    const stationFiltered = (stationConfig.type === StationType.HUB)
+      ? (filterStation === 'ALL' ? encounters : encounters.filter(e => e.stationName === filterStation))
+      : encounters.filter(e => e.stationName === stationConfig.name);
+
+    // Staff không thấy đơn bổ sung cuối kỳ; Admin/Mod thấy tất cả
+    const visibleEncounters = isPrivileged
+      ? stationFiltered
+      : stationFiltered.filter(e => !e.isSupplementary);
+
+    const periodStart = new Date(`${startDate}T${startTime}:00`).getTime();
+    const periodEnd   = new Date(`${endDate}T${endTime}:59`).getTime();
+    const periodFiltered = visibleEncounters
+      .filter(e => e.startTime >= periodStart && e.startTime <= periodEnd)
+      .sort((a, b) => a.startTime - b.startTime);
+
+    totalExams = periodFiltered.length;
+    totalTransfers = periodFiltered.filter(e => e.status === EncounterStatus.COMPLETED_TRANSFER).length;
+    totalEverRested = periodFiltered.filter((e: any) => e.hadRestAtRoom).length;
+    totalCurrentlyResting = periodFiltered.filter(e => e.status === EncounterStatus.REST_30 || e.status === EncounterStatus.MONITOR).length;
+
+    infectiousEncounters = periodFiltered.filter(e => e.diseaseGroup === 'Bệnh truyền nhiễm');
+    infectiousEncounters.forEach(e => {
+      const g = parseInfectiousDiag(e.diagnosis).group;
+      if (g === 'A') infByGroup.A++;
+      else if (g === 'B') infByGroup.B++;
+      else if (g === 'C') infByGroup.C++;
+    });
+
+    const diseaseMap: Record<string, number> = {};
+    periodFiltered.forEach(e => {
+      const group = e.diseaseGroup || 'Chưa phân loại';
+      diseaseMap[group] = (diseaseMap[group] || 0) + 1;
+    });
+    sorted = Object.entries(diseaseMap).sort((a, b) => b[1] - a[1]) as [string, number][];
+    top5 = sorted.slice(0, 5);
+    const otherCount = sorted.slice(5).reduce((sum, [, v]) => sum + v, 0);
+    pieData = top5.map(([name, value]) => ({ name, value }));
+    if (otherCount > 0) pieData.push({ name: 'Khác / 其他', value: otherCount });
+    if (pieData.length === 0) pieData.push({ name: 'Chưa có dữ liệu', value: 1 });
+
+    const fullDisplayList = (activeTopTab === 'infectious'
+      ? infectiousEncounters
+      : detailFilter === null
+        ? periodFiltered
+        : detailFilter.type === 'transfer'
+          ? periodFiltered.filter(e => e.status === EncounterStatus.COMPLETED_TRANSFER)
+          : detailFilter.type === 'resting'
+            ? periodFiltered.filter((e: any) => e.hadRestAtRoom)
+          : detailFilter.type === 'resting_now'
+            ? periodFiltered.filter(e => e.status === EncounterStatus.REST_30 || e.status === EncounterStatus.MONITOR)
+            : periodFiltered.filter(e => {
+                if (detailFilter.group === 'Khác / 其他') {
+                  const top5Names = top5.map(([name]) => name);
+                  return !top5Names.includes(e.diseaseGroup || 'Chưa phân loại');
+                }
+                return (e.diseaseGroup || 'Chưa phân loại') === detailFilter.group;
+              })
+    ).slice().reverse();
+
+    totalPages = Math.ceil(fullDisplayList.length / PAGE_SIZE);
+    displayList = fullDisplayList.slice(tablePage * PAGE_SIZE, (tablePage + 1) * PAGE_SIZE);
+    listTotal = fullDisplayList.length;
+    exportRows = periodFiltered;
+  }
+
+  // Tổng cho % biểu đồ (tổng số ca trong kỳ)
+  const total = totalExams;
+
+  // Số ca truyền nhiễm: serverMode lấy từ summary (để đúng kể cả khi không ở tab truyền nhiễm)
+  const infectiousCount = serverMode
+    ? (summary?.by_disease_group?.find((d: any) => d.disease_group === 'Bệnh truyền nhiễm')?.count || 0)
+    : infectiousEncounters.length;
 
   const detailFilterLabel = detailFilter === null ? null
     : detailFilter.type === 'transfer' ? 'Chuyển viện / 转院'
@@ -393,7 +487,7 @@ export const Reports: React.FC<ReportsProps> = ({ stationConfig, currentUser, re
   const filteredMedicines = medicines.filter(m => m.name.toLowerCase().includes(medSearch.toLowerCase()));
 
   // 👇 [NÂNG CẤP] Hàm xuất Excel theo dạng ma trận thuốc (Pivot)
-  const handleExportExcel = () => {
+  const handleExportExcel = async () => {
     // 1. Lấy danh sách tên thuốc — dùng đúng thứ tự đã lưu từ file Excel import
     // Nếu chưa có saved order → fallback về toàn bộ inventory
     const savedOrder = storage.getMedicineOrder();
@@ -402,8 +496,18 @@ export const Reports: React.FC<ReportsProps> = ({ stationConfig, currentUser, re
       ? savedOrder.filter(name => allFromInventory.includes(name))
       : allFromInventory;
 
+    // Lãnh đạo (serverMode): kéo toàn bộ ca trong kỳ từ server khi bấm xuất (tối đa 5000)
+    let rows = exportRows;
+    if (serverMode) {
+      const fromTs = new Date(`${startDate}T${startTime}:00`).getTime();
+      const toTs   = new Date(`${endDate}T${endTime}:59`).getTime();
+      const stationName = filterStation !== 'ALL' ? filterStation : undefined;
+      const res = await (window as any).electron.queryServerEncounters({ from: fromTs, to: toTs, stationName, limit: 5000, offset: 0 });
+      rows = ((res?.data || []) as any[]).slice().sort((a, b) => a.startTime - b.startTime);
+    }
+
     // 2. Chuẩn bị dữ liệu hàng
-    const data = periodFiltered.map((e, idx) => {
+    const data = rows.map((e, idx) => {
         const startDate = new Date(e.startTime);
         const endDate = e.endTime ? new Date(e.endTime) : null;
         const row: any = {
@@ -601,7 +705,7 @@ export const Reports: React.FC<ReportsProps> = ({ stationConfig, currentUser, re
              <button onClick={() => setActiveTopTab('disease')} className={`px-3 py-1.5 rounded-t-lg text-xs font-bold transition border-b-2 ${activeTopTab === 'disease' ? 'border-blue-500 text-blue-700 bg-blue-50' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>Cơ cấu bệnh tật<span className="block text-[9px] font-normal opacity-70 leading-tight">疾病分布</span></button>
              <button onClick={() => setActiveTopTab('infectious')} className={`px-3 py-1.5 rounded-t-lg text-xs font-bold transition border-b-2 flex items-center gap-1 ${activeTopTab === 'infectious' ? 'border-red-500 text-red-700 bg-red-50' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>
                <span>🦠 Bệnh truyền nhiễm<span className="block text-[9px] font-normal opacity-70 leading-tight">传染病</span></span>
-               {infectiousEncounters.length > 0 && <span className="bg-red-500 text-white text-[9px] px-1.5 py-0.5 rounded-full">{infectiousEncounters.length}</span>}
+               {infectiousCount > 0 && <span className="bg-red-500 text-white text-[9px] px-1.5 py-0.5 rounded-full">{infectiousCount}</span>}
              </button>
            </div>
            <div className="flex items-center gap-1.5 text-xs ml-auto flex-wrap">
@@ -663,7 +767,7 @@ export const Reports: React.FC<ReportsProps> = ({ stationConfig, currentUser, re
            ) : activeTopTab === 'infectious' ? (
              <div className="h-full flex items-stretch gap-3 px-4 py-3">
                <div className="flex-1 bg-red-50 border border-red-200 rounded-xl flex flex-col items-center justify-center">
-                 <span className="text-3xl font-bold text-red-700">{infectiousEncounters.length}</span>
+                 <span className="text-3xl font-bold text-red-700">{infectiousCount}</span>
                  <span className="text-xs text-gray-500 mt-1">Tổng ca BTN / 传染病总计</span>
                </div>
                <div className="flex-1 bg-red-100 rounded-xl flex flex-col items-center justify-center">
@@ -755,7 +859,7 @@ export const Reports: React.FC<ReportsProps> = ({ stationConfig, currentUser, re
                         <X size={14} className="mr-1"/><span>Xóa bộ lọc<span className="block text-[9px] font-normal opacity-80 leading-tight">清除筛选</span></span>
                     </button>
                 )}
-                <button onClick={loadData} disabled={isLoading} className={`p-2 text-gray-500 hover:bg-gray-200 rounded-lg transition ${isLoading ? 'animate-spin' : ''}`}><RefreshCw size={20}/></button>
+                <button onClick={() => { loadData(); setReloadKey(k => k + 1); }} disabled={isLoading || pageLoading} className={`p-2 text-gray-500 hover:bg-gray-200 rounded-lg transition ${(isLoading || pageLoading) ? 'animate-spin' : ''}`}><RefreshCw size={20}/></button>
                 <button onClick={handleExportExcel} className="flex items-center text-sm bg-green-100 text-green-800 px-4 py-2 rounded-lg hover:bg-green-200 transition font-bold shadow-sm"><Download size={16} className="mr-2 shrink-0"/><span>Xuất Excel<span className="block text-[9px] font-normal opacity-80 leading-tight">导出Excel</span></span></button>
                 <button onClick={() => setShowReportWizard(true)} className="flex items-center text-sm bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition font-bold shadow-sm"><FileBarChart2 size={16} className="mr-2 shrink-0"/><span>Xuất báo cáo<span className="block text-[9px] font-normal opacity-80 leading-tight">导出报告</span></span></button>
               </div>
@@ -827,7 +931,7 @@ export const Reports: React.FC<ReportsProps> = ({ stationConfig, currentUser, re
           </div>
           {totalPages > 1 && (
             <div className="flex items-center justify-between px-4 py-2 border-t bg-gray-50 text-sm text-gray-600">
-              <span>{tablePage * PAGE_SIZE + 1}–{Math.min((tablePage + 1) * PAGE_SIZE, fullDisplayList.length)} / {fullDisplayList.length} ca</span>
+              <span>{tablePage * PAGE_SIZE + 1}–{Math.min((tablePage + 1) * PAGE_SIZE, listTotal)} / {listTotal} ca</span>
               <div className="flex gap-1">
                 <button disabled={tablePage === 0} onClick={() => setTablePage(0)} className="px-2 py-1 rounded border disabled:opacity-40 hover:bg-gray-200">«</button>
                 <button disabled={tablePage === 0} onClick={() => setTablePage(p => p - 1)} className="px-2 py-1 rounded border disabled:opacity-40 hover:bg-gray-200">‹</button>

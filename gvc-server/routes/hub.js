@@ -5,22 +5,60 @@ const db = require('../db');
 // GET /api/hub/encounters?from=<unix_ms>&to=<unix_ms>&station_id=<id>
 router.get('/encounters', async (req, res) => {
   try {
-    const { from, to, station_id } = req.query;
+    const { from, to, station_id, station_name, disease_group, disease_group_not, status, had_rest, limit, offset } = req.query;
     const params = [];
     let where = 'WHERE 1=1';
 
-    if (from)       { where += ' AND start_time >= ?'; params.push(Number(from)); }
-    if (to)         { where += ' AND start_time <= ?'; params.push(Number(to)); }
-    if (station_id) { where += ' AND station_id = ?';  params.push(station_id); }
+    if (from)         { where += ' AND start_time >= ?';  params.push(Number(from)); }
+    if (to)           { where += ' AND start_time <= ?';  params.push(Number(to)); }
+    if (station_id)   { where += ' AND station_id = ?';   params.push(station_id); }
+    if (station_name) { where += ' AND station_name = ?'; params.push(station_name); }
 
-    const rows = await db.all(
-      `SELECT * FROM encounters ${where} ORDER BY start_time DESC LIMIT 5000`,
-      params
-    );
+    // Bộ lọc drilldown (cho phân trang server giữ đúng filter)
+    if (disease_group) {
+      // 'Chưa phân loại' = disease_group rỗng/null
+      if (disease_group === '__NULL__') { where += ` AND (disease_group IS NULL OR disease_group = '')`; }
+      else { where += ' AND disease_group = ?'; params.push(disease_group); }
+    }
+    if (disease_group_not) {
+      // Bucket "Khác": loại trừ các nhóm top + coi rỗng là 'Chưa phân loại'
+      const groups = String(disease_group_not).split(',').filter(Boolean);
+      const hasNull = groups.includes('__NULL__');
+      const realGroups = groups.filter(g => g !== '__NULL__');
+      if (realGroups.length) {
+        where += ` AND COALESCE(NULLIF(disease_group, ''), '__NULL__') NOT IN (${realGroups.map(() => '?').join(',')}${hasNull ? ",'__NULL__'" : ''})`;
+        params.push(...realGroups);
+      } else if (hasNull) {
+        where += ` AND disease_group IS NOT NULL AND disease_group != ''`;
+      }
+    }
+    if (status) {
+      const sts = String(status).split(',').filter(Boolean);
+      if (sts.length) { where += ` AND status IN (${sts.map(() => '?').join(',')})`; params.push(...sts); }
+    }
+    if (had_rest === '1') { where += ' AND had_rest_at_room = 1'; }
 
     const parseArr = (v) => { try { const p = JSON.parse(v || '[]'); return Array.isArray(p) ? p : []; } catch { return []; } };
+
+    // Có limit → chế độ phân trang: trả thêm total để client dựng pagination
+    const paginated = limit !== undefined;
+    const lim = Math.min(Number(limit) || 5000, 5000);
+    const off = Math.max(Number(offset) || 0, 0);
+
+    const rows = await db.all(
+      `SELECT * FROM encounters ${where} ORDER BY start_time DESC LIMIT ? OFFSET ?`,
+      [...params, lim, off]
+    );
+
+    let total;
+    if (paginated) {
+      const c = await db.get(`SELECT COUNT(*) as n FROM encounters ${where}`, params);
+      total = c?.n || 0;
+    }
+
     res.json({
       success: true,
+      total,
       data: rows.map(r => ({
         ...r,
         symptoms:      parseArr(r.symptoms),
@@ -92,30 +130,40 @@ router.get('/inventory/logs', async (req, res) => {
 // GET /api/hub/summary?from=<unix_ms>&to=<unix_ms> — tổng hợp nhanh
 router.get('/summary', async (req, res) => {
   try {
-    const { from, to } = req.query;
+    const { from, to, station_id, station_name } = req.query;
     const params = [];
     let where = 'WHERE 1=1';
-    if (from) { where += ' AND start_time >= ?'; params.push(Number(from)); }
-    if (to)   { where += ' AND start_time <= ?'; params.push(Number(to)); }
+    if (from)         { where += ' AND start_time >= ?';  params.push(Number(from)); }
+    if (to)           { where += ' AND start_time <= ?';  params.push(Number(to)); }
+    if (station_id)   { where += ' AND station_id = ?';   params.push(station_id); }
+    if (station_name) { where += ' AND station_name = ?'; params.push(station_name); }
 
-    const [total, byStation, byDisease] = await Promise.all([
+    const [total, byStation, byDisease, transfers, everRested, currentlyResting] = await Promise.all([
       db.get(`SELECT COUNT(*) as count FROM encounters ${where}`, params),
       db.all(
         `SELECT station_name, COUNT(*) as count FROM encounters ${where} GROUP BY station_name ORDER BY count DESC`,
         params
       ),
       db.all(
-        `SELECT disease_group, COUNT(*) as count FROM encounters ${where} WHERE disease_group IS NOT NULL GROUP BY disease_group ORDER BY count DESC LIMIT 10`,
+        // Gộp null/rỗng thành 'Chưa phân loại' để khớp cách tính của client
+        `SELECT COALESCE(NULLIF(disease_group, ''), 'Chưa phân loại') as disease_group, COUNT(*) as count
+         FROM encounters ${where} GROUP BY 1 ORDER BY count DESC`,
         params
       ),
+      db.get(`SELECT COUNT(*) as count FROM encounters ${where} AND status = 'COMPLETED_TRANSFER'`, params),
+      db.get(`SELECT COUNT(*) as count FROM encounters ${where} AND had_rest_at_room = 1`, params),
+      db.get(`SELECT COUNT(*) as count FROM encounters ${where} AND status IN ('REST_30','MONITOR')`, params),
     ]);
 
     res.json({
       success: true,
       data: {
-        total_encounters: total?.count || 0,
-        by_station:       byStation,
-        by_disease_group: byDisease,
+        total_encounters:   total?.count || 0,
+        by_station:         byStation,
+        by_disease_group:   byDisease,
+        transfers:          transfers?.count || 0,
+        ever_rested:        everRested?.count || 0,
+        currently_resting:  currentlyResting?.count || 0,
       },
     });
   } catch (err) {

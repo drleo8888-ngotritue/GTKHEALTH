@@ -120,14 +120,34 @@ async function pullHubReportData(periodMonth, periodYear) {
   return res?.success ? (res.data || []) : null;
 }
 
-// Hub kéo danh sách ca khám từ server
-async function pullHubEncounters(from, to, stationId) {
+// Hub kéo danh sách ca khám từ server (hỗ trợ phân trang + filter drilldown)
+// opts: { from, to, stationId, limit, offset, diseaseGroup, diseaseGroupNot, status, hadRest }
+// Trả về full response { success, data, total } để client dựng pagination, hoặc null khi lỗi.
+async function pullHubEncounters(opts = {}) {
+  const { from, to, stationId, stationName, limit, offset, diseaseGroup, diseaseGroupNot, status, hadRest } = opts;
   const params = new URLSearchParams();
   if (from) params.set('from', String(from));
   if (to)   params.set('to', String(to));
-  if (stationId) params.set('station_id', stationId);
-  const res = await request('GET', `/api/hub/encounters?${params}`, null, true);
-  return res?.success ? (res.data || []) : null;
+  if (stationId)   params.set('station_id', stationId);
+  if (stationName) params.set('station_name', stationName);
+  if (limit  !== undefined && limit  !== null) params.set('limit',  String(limit));
+  if (offset !== undefined && offset !== null) params.set('offset', String(offset));
+  if (diseaseGroup)    params.set('disease_group', diseaseGroup);
+  if (diseaseGroupNot) params.set('disease_group_not', diseaseGroupNot);
+  if (status)          params.set('status', status);
+  if (hadRest)         params.set('had_rest', '1');
+  return request('GET', `/api/hub/encounters?${params}`, null, true);
+}
+
+// Hub kéo số liệu tổng hợp (KPI) — server đếm sẵn, không kéo row thô
+async function pullHubSummary({ from, to, stationId, stationName } = {}) {
+  const params = new URLSearchParams();
+  if (from) params.set('from', String(from));
+  if (to)   params.set('to', String(to));
+  if (stationId)   params.set('station_id', stationId);
+  if (stationName) params.set('station_name', stationName);
+  const res = await request('GET', `/api/hub/summary?${params}`, null, true);
+  return res?.success ? res.data : null;
 }
 
 // Hub kéo tồn kho tổng hợp từ server
@@ -195,6 +215,7 @@ module.exports = {
   pullHubReportStatus,
   pullHubReportData,
   pullHubEncounters,
+  pullHubSummary,
   pullHubStock,
   createTransfer,
   getHubTransfers,

@@ -46,6 +46,9 @@ export const Layout: React.FC<LayoutProps> = ({
   children, activeTab, onTabChange, currentUser, stationConfig, onLogout, onChangePassword
 }) => {
 
+  // Chế độ lãnh đạo: chỉ Dashboard / Kho dược / Báo cáo, dữ liệu từ server
+  const leader = !!currentUser.leaderView;
+
   // --- HÀM MỞ CỬA SỔ KIOSK RIÊNG ---
   const handleOpenKioskWindow = async () => {
     if (window.electron) {
@@ -81,11 +84,12 @@ export const Layout: React.FC<LayoutProps> = ({
         <nav className="flex-1 p-3 overflow-y-auto space-y-1">
           {/* Các tab chức năng chính */}
           <SidebarItem id="dashboard" label="Tổng quan / 总览" icon={LayoutDashboard} active={activeTab === 'dashboard'} onClick={onTabChange} />
-          <SidebarItem id="kiosk" label="Tiếp đón / 接待" icon={UserPlus} active={activeTab === 'kiosk'} onClick={onTabChange} />
-          <SidebarItem id="clinical" label="Lâm sàng / 诊所" icon={Stethoscope} active={activeTab === 'clinical'} onClick={onTabChange} />
+          {!leader && <SidebarItem id="kiosk" label="Tiếp đón / 接待" icon={UserPlus} active={activeTab === 'kiosk'} onClick={onTabChange} />}
+          {!leader && <SidebarItem id="clinical" label="Lâm sàng / 诊所" icon={Stethoscope} active={activeTab === 'clinical'} onClick={onTabChange} />}
           <SidebarItem id="inventory" label="Kho dược / 药房" icon={Pill} active={activeTab === 'inventory'} onClick={onTabChange} />
           <SidebarItem id="reports" label="Báo cáo / 报告" icon={BarChart3} active={activeTab === 'reports'} onClick={onTabChange} />
-          
+
+          {!leader && <>
           <div className="my-4 border-t border-gray-100"></div>
 
           {/* --- 🔥 NÚT MỞ KIOSK (CẬP NHẬT MỚI) --- */}
@@ -107,6 +111,7 @@ export const Layout: React.FC<LayoutProps> = ({
           <div className="my-2 border-t border-gray-100"></div>
 
           <SidebarItem id="admin" label="Cấu hình / 设置" icon={Settings} active={activeTab === 'admin'} onClick={onTabChange} />
+          </>}
           <div className="px-4 pt-1 pb-2">
             <span className="text-xs text-gray-400 font-semibold select-none">v{__APP_VERSION__}</span>
           </div>

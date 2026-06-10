@@ -104,16 +104,27 @@ export const Reports: React.FC<ReportsProps> = ({ stationConfig, currentUser, re
     setKnownStations(storage.getKnownStations());
   }, [refreshTrigger]);
 
-  // Hub: reload khi đổi khoảng thời gian
+  // Hub & lãnh đạo: reload khi đổi khoảng thời gian (đọc từ server theo range)
   useEffect(() => {
-    if (stationConfig.type === StationType.HUB) loadData();
+    if (stationConfig.type === StationType.HUB || currentUser.leaderView) loadData();
   }, [startDate, endDate, startTime, endTime]);
 
   const loadData = async () => {
     setIsLoading(true);
+    // Lãnh đạo: máy không có local data → kéo encounters + tồn kho từ server
+    const serverMode = !!currentUser.leaderView;
     if (window.electron) {
         try {
-            if (stationConfig.type === StationType.HUB) {
+            if (serverMode) {
+                const fromTs = new Date(`${startDate}T${startTime}`).getTime();
+                const toTs   = new Date(`${endDate}T${endTime}`).getTime();
+                const serverRes = await (window as any).electron.queryServerEncounters({ from: fromTs, to: toTs });
+                const serverData: any[] = (serverRes?.data || []).map((e: any) => ({ ...e, _fromServer: true }));
+                setEncounters(serverData);
+                // Dropdown trạm: dựng từ dữ liệu server
+                const names = [...new Set(serverData.map((e: any) => e.stationName).filter(Boolean))] as string[];
+                setKnownStations(names.map((n: string) => ({ name: n, type: 'SPOKE' })));
+            } else if (stationConfig.type === StationType.HUB) {
                 // Load local trước (Hub's own), rồi merge thêm Spoke data từ server
                 const fromTs = new Date(`${startDate}T${startTime}`).getTime();
                 const toTs   = new Date(`${endDate}T${endTime}`).getTime();
@@ -153,7 +164,23 @@ export const Reports: React.FC<ReportsProps> = ({ stationConfig, currentUser, re
                 const data = await window.electron.getAllEncounters();
                 setEncounters(data);
             }
-            const medList = await window.electron.getInventory(stationConfig.name);
+            // Tồn kho: lãnh đạo lấy tổng hợp từ server, còn lại lấy local
+            let medList: any[];
+            if (serverMode) {
+                const stockRes = await (window as any).electron.getHubSpokeStock();
+                medList = (stockRes?.data || []).map((r: any) => ({
+                    name:        r.name,
+                    stock:       r.stock || 0,
+                    expiryDate:  r.expiry_date || '',
+                    batchNumber: r.batch_number || '---',
+                    station:     r.station_name || '',
+                    group:       r.group_name,
+                    unit:        r.unit,
+                    type:        r.type,
+                }));
+            } else {
+                medList = await window.electron.getInventory(stationConfig.name);
+            }
             setMedicines(medList || []);
         } catch (e) {
             console.error("Lỗi tải dữ liệu:", e);

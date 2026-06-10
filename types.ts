@@ -41,6 +41,9 @@ export interface User {
   mnv: string;
   role: Role;
   canPrescribe: boolean;
+  // Chế độ "lãnh đạo": máy cá nhân không có local data — chỉ xem Dashboard/Báo cáo/Kho,
+  // toàn bộ dữ liệu kéo từ server về (không đọc local).
+  leaderView?: boolean;
 }
 
 export interface StationConfig {

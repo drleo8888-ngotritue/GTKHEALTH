@@ -229,9 +229,27 @@ export const Dashboard: React.FC<DashboardProps> = ({ currentUser, stationConfig
 
   const loadData = async () => {
     setIsLoading(true);
+    // Lãnh đạo: máy không có local data → toàn bộ kéo từ server
+    const serverMode = !!currentUser.leaderView;
     try {
       if ((window as any).electron) {
-        const medicines = await (window as any).electron.getInventory(stationConfig.name);
+        let medicines: any[];
+        if (serverMode) {
+          // Tồn kho tổng hợp tất cả trạm từ server (snake_case → camelCase)
+          const stockRes = await (window as any).electron.getHubSpokeStock();
+          medicines = (stockRes?.data || []).map((r: any) => ({
+            name:        r.name,
+            stock:       r.stock || 0,
+            expiryDate:  r.expiry_date || '',
+            batchNumber: r.batch_number || '---',
+            station:     r.station_name || '',
+            group:       r.group_name,
+            unit:        r.unit,
+            type:        r.type,
+          }));
+        } else {
+          medicines = await (window as any).electron.getInventory(stationConfig.name);
+        }
 
         const totalStock = medicines
           ? medicines.reduce((sum: number, m: any) => sum + (m.stock || 0), 0)
@@ -260,7 +278,12 @@ export const Dashboard: React.FC<DashboardProps> = ({ currentUser, stationConfig
         let prescriptionsToday = 0;
         try {
           let encounters: any[] = [];
-          if (stationConfig.type === StationType.HUB && (window as any).electron.queryServerEncounters) {
+          if (serverMode && (window as any).electron.queryServerEncounters) {
+            // Lãnh đạo: chỉ đọc từ server, không có local
+            const from = Date.now() - 90 * 24 * 60 * 60 * 1000;
+            const serverRes = await (window as any).electron.queryServerEncounters({ from });
+            encounters = serverRes?.data || [];
+          } else if (stationConfig.type === StationType.HUB && (window as any).electron.queryServerEncounters) {
             // Hub: merge local + server để không bao giờ mất data
             const from = Date.now() - 90 * 24 * 60 * 60 * 1000;
             const [localData, serverRes] = await Promise.all([

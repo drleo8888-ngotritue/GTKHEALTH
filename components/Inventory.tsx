@@ -116,9 +116,9 @@ export const Inventory: React.FC<InventoryProps> = ({ stationConfig, refreshTrig
     if(stations.length > 0) setKnownStations(stations);
   }, [stationConfig.name]);
 
-  // Khi Hub đổi trạm lọc → tải lại dữ liệu từ nguồn phù hợp
+  // Khi Hub / lãnh đạo đổi trạm lọc → tải lại dữ liệu từ nguồn phù hợp
   useEffect(() => {
-    if (stationConfig.type === StationType.HUB) loadData();
+    if (stationConfig.type === StationType.HUB || currentUser.leaderView) loadData();
   }, [filterStation]);
 
   useEffect(() => {
@@ -135,8 +135,37 @@ export const Inventory: React.FC<InventoryProps> = ({ stationConfig, refreshTrig
 
   const loadData = async () => {
     setIsLoading(true);
+    // Lãnh đạo: máy không có local data → tồn kho tổng hợp từ server
+    const serverMode = !!currentUser.leaderView;
     if ((window as any).electron) {
         try {
+            if (serverMode) {
+                // Kéo toàn bộ tồn kho mọi trạm từ server, lọc theo trạm đang chọn (client-side)
+                const res = await (window as any).electron.getHubSpokeStock();
+                const rows: any[] = (res?.success && Array.isArray(res.data)) ? res.data : [];
+                const mapped: Medicine[] = rows.map((r: any) => ({
+                    id: r.id || `${r.station_name}_${r.name}_${r.batch_number}`,
+                    name: r.name || '',
+                    group: r.group_name || '',
+                    group_name: r.group_name || '',
+                    unit: r.unit || '',
+                    stock: r.stock || 0,
+                    expiryDate: r.expiry_date || '',
+                    batchNumber: r.batch_number || '',
+                    type: (r.type || 'MEDICINE') as MedicineType,
+                    station: r.station_name || '',
+                }));
+                // Dropdown trạm dựng từ dữ liệu server (máy lãnh đạo không có known stations)
+                const names = [...new Set(rows.map((r: any) => r.station_name).filter(Boolean))] as string[];
+                if (names.length) setKnownStations(names.map((n: string) => ({ name: n, type: 'SPOKE' })));
+                const shown = filterStation === 'ALL' ? mapped : mapped.filter(m => m.station === filterStation);
+                setMedicines(shown);
+                setLogs([]);
+                setClosedPeriods([]);
+                setIsLoading(false);
+                return;
+            }
+
             const isViewingSpoke = stationConfig.type === StationType.HUB
               && filterStation !== 'ALL'
               && filterStation !== stationConfig.name;

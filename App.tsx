@@ -392,14 +392,23 @@ const MainApp = () => {
     return <LoginScreen onLogin={setCurrentUser} onReset={handleReset} />;
   }
 
+  // Lãnh đạo: chỉ được ở 3 tab này; chặn mọi điều hướng sang tab khác (kể cả quick-link)
+  const leader = !!currentUser.leaderView;
+  const allowedLeaderTabs = ['dashboard', 'inventory', 'reports'];
+  const safeSetActiveTab = (tab: string) => {
+    if (leader && !allowedLeaderTabs.includes(tab)) return;
+    setActiveTab(tab);
+  };
+  const safeActiveTab = leader && !allowedLeaderTabs.includes(activeTab) ? 'dashboard' : activeTab;
+
   return (
     <>
     {showChangePassword && currentUser && (
       <ChangePasswordModal user={currentUser} onClose={() => setShowChangePassword(false)} />
     )}
     <Layout
-      activeTab={activeTab}
-      onTabChange={setActiveTab}
+      activeTab={safeActiveTab}
+      onTabChange={safeSetActiveTab}
       currentUser={currentUser}
       stationConfig={stationConfig}
       onLogout={() => setCurrentUser(null)}
@@ -407,39 +416,39 @@ const MainApp = () => {
     >
       <RestMonitor />
 
-      {activeTab === 'dashboard' && (
+      {safeActiveTab === 'dashboard' && (
         <Dashboard
           currentUser={currentUser}
           stationConfig={stationConfig}
-          onTabChange={setActiveTab}
+          onTabChange={safeSetActiveTab}
           refreshTrigger={refreshTrigger}
         />
       )}
 
       {/* Tab Kiosk vẫn giữ ở đây để Admin có thể xem trước */}
-      {activeTab === 'kiosk' && <Kiosk stationId={stationConfig.id} stationName={stationConfig.name} />}
-      
-      {activeTab === 'clinical' && (
-          <Clinical 
-              stationId={stationConfig.id} 
-              stationName={stationConfig.name} 
-              refreshTrigger={refreshTrigger} 
-              onDataChange={triggerRefresh} 
-              currentUser={currentUser} 
+      {safeActiveTab === 'kiosk' && <Kiosk stationId={stationConfig.id} stationName={stationConfig.name} />}
+
+      {safeActiveTab === 'clinical' && (
+          <Clinical
+              stationId={stationConfig.id}
+              stationName={stationConfig.name}
+              refreshTrigger={refreshTrigger}
+              onDataChange={triggerRefresh}
+              currentUser={currentUser}
           />
       )}
 
-      {activeTab === 'inventory' && (
+      {safeActiveTab === 'inventory' && (
           <Inventory
               stationConfig={stationConfig}
               refreshTrigger={refreshTrigger}
               currentUser={currentUser}
           />
       )}
-      
-      {activeTab === 'reports' && <Reports stationConfig={stationConfig} currentUser={currentUser} refreshTrigger={refreshTrigger} />}
-      
-      {activeTab === 'admin' && <Admin currentUser={currentUser} />}
+
+      {safeActiveTab === 'reports' && <Reports stationConfig={stationConfig} currentUser={currentUser} refreshTrigger={refreshTrigger} />}
+
+      {safeActiveTab === 'admin' && <Admin currentUser={currentUser} />}
     </Layout>
     </>
   );

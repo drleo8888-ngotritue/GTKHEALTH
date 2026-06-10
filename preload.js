@@ -98,6 +98,7 @@ contextBridge.exposeInMainWorld('electron', {
   // --- SYNC PROGRESS MODAL ---
   getPushStatus:              ()         => ipcRenderer.invoke('sync:get-push-status'),
   syncWithProgress:           (options)  => ipcRenderer.invoke('sync:push-with-progress', options),
+  resetSyncFlags:             ()         => ipcRenderer.invoke('sync:reset-flags'),
   onSyncProgress:             (callback) => ipcRenderer.on('sync:progress-update', (_event, data) => callback(data)),
   removeSyncProgressListener: ()         => ipcRenderer.removeAllListeners('sync:progress-update'),
 });

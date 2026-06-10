@@ -856,6 +856,17 @@ module.exports = {
     await runQuery(`UPDATE inventory_logs SET is_synced_server = 1 WHERE id IN (${placeholders})`, ids);
   },
 
+  // Reset toàn bộ lịch sử sync về 0 — dùng khi vừa wipe DB server, cần đẩy lại từ đầu
+  resetSyncFlags: async () => {
+    try { await runQuery(`ALTER TABLE inventory_logs ADD COLUMN is_synced_server INTEGER DEFAULT 0`); } catch (_) {}
+    const enc = await runQuery(`UPDATE encounters     SET is_synced_server = 0`);
+    const inv = await runQuery(`UPDATE inventory_logs SET is_synced_server = 0`);
+    return {
+      encounters:    enc?.changes ?? 0,
+      inventoryLogs: inv?.changes ?? 0,
+    };
+  },
+
   // === BÁO CÁO THUỐC TỪ SPOKE (Hub nhập về) ===
   importSpokeReport: async ({ id, station, periodType, periodMonth, periodYear, data, fileId }) => {
     // Tránh nhập trùng cùng file

@@ -109,6 +109,7 @@ export const Admin: React.FC<AdminProps> = ({ currentUser }) => {
   const [syncProgressText, setSyncProgressText]   = useState('');
   const [pushStatusRows, setPushStatusRows]       = useState<{ date: string; total: number; pushed: number; pending: number }[]>([]);
   const [syncLogs, setSyncLogs]                   = useState<string[]>([]);
+  const [resetSyncResult, setResetSyncResult]     = useState<string | null>(null);
 
   // Confirmation Modal State
   const [confirmModal, setConfirmModal] = useState<{
@@ -1499,8 +1500,44 @@ export const Admin: React.FC<AdminProps> = ({ currentUser }) => {
                                 <p className="font-bold text-sm text-gray-700">Đẩy dữ liệu quá khứ</p>
                                 <p className="text-xs text-gray-400">Chọn loại dữ liệu cần push lên server (theo lô 10, kiểm tra trùng trước)</p>
                             </div>
+                            {isStationAdmin && (
+                                <button
+                                    disabled={isSyncingProgress}
+                                    onClick={async () => {
+                                        if (!window.electron?.resetSyncFlags) return;
+                                        const ok = window.confirm(
+                                            'Reset lịch sử đồng bộ?\n\n' +
+                                            'Đưa TẤT CẢ ca khám và giao dịch kho về trạng thái "chưa đồng bộ", để đẩy lại toàn bộ từ đầu — dùng sau khi vừa xóa (wipe) database trên server.\n\n' +
+                                            'Dữ liệu local KHÔNG bị xóa, chỉ reset cờ sync.'
+                                        );
+                                        if (!ok) return;
+                                        setResetSyncResult(null);
+                                        const r = await window.electron.resetSyncFlags();
+                                        if (r.success) {
+                                            setResetSyncResult(`Đã reset: ${r.encounters ?? 0} ca khám, ${r.inventoryLogs ?? 0} giao dịch kho về chưa-sync. Bấm "Bắt đầu đẩy" để đồng bộ lại.`);
+                                            const rows = await window.electron.getPushStatus();
+                                            setPushStatusRows(rows || []);
+                                            window.electron.getUnsyncedCount?.().then(setUnsyncedCount);
+                                        } else {
+                                            setResetSyncResult(`Lỗi: ${r.message || 'không reset được'}`);
+                                        }
+                                    }}
+                                    className="flex items-center gap-1.5 px-3 py-1.5 border border-amber-400 text-amber-600 rounded-lg text-xs font-bold hover:bg-amber-50 disabled:opacity-40 disabled:cursor-not-allowed shrink-0"
+                                    title="Đưa tất cả flag về chưa-sync (dùng sau khi wipe server)"
+                                >
+                                    <RefreshCw size={13}/> Reset lịch sử sync
+                                </button>
+                            )}
                         </div>
                         <div className="px-4 py-4 flex flex-col gap-4">
+
+                            {/* Kết quả reset lịch sử sync */}
+                            {resetSyncResult && (
+                                <div className={`rounded-lg px-3 py-2 text-xs font-medium flex items-start gap-2 ${resetSyncResult.startsWith('Lỗi') ? 'bg-red-50 text-red-600' : 'bg-amber-50 text-amber-700'}`}>
+                                    <RefreshCw size={14} className="shrink-0 mt-0.5"/>
+                                    <span>{resetSyncResult}</span>
+                                </div>
+                            )}
 
                             {/* Checkboxes */}
                             <div className="flex flex-wrap gap-4">

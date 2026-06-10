@@ -1071,6 +1071,21 @@ ipcMain.handle('sync:get-push-status', async () => {
   }
 });
 
+// Reset toàn bộ flag is_synced_server về 0 — dùng sau khi wipe DB server
+ipcMain.handle('sync:reset-flags', async () => {
+  if (_syncProgressRunning) {
+    return { success: false, message: 'Đang đồng bộ, vui lòng chờ xong rồi reset.' };
+  }
+  try {
+    const r = await dbService.resetSyncFlags();
+    console.log(`♻️ [SYNC] Reset lịch sử sync: ${r.encounters} ca khám, ${r.inventoryLogs} giao dịch kho về chưa-sync.`);
+    return { success: true, ...r };
+  } catch (err) {
+    console.error('❌ Lỗi reset sync flags:', err.message);
+    return { success: false, message: err.message };
+  }
+});
+
 // Push dữ liệu lịch sử lên server — batch 10, check-exists, DESC
 // options: { pushEncounters: bool, pushInventoryLogs: bool }
 ipcMain.handle('sync:push-with-progress', async (event, options = {}) => {

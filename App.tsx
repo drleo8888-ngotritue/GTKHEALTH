@@ -188,6 +188,7 @@ const LoginScreen: React.FC<{ onLogin: (user: User) => void, onReset: () => void
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [showResetModal, setShowResetModal] = useState(false);
+  const stationName = storage.getStationConfig()?.name || '';
 
   const handleLogin = async () => {
     if (!selectedUserId || !password) return;
@@ -213,15 +214,25 @@ const LoginScreen: React.FC<{ onLogin: (user: User) => void, onReset: () => void
   };
 
   return (
-    <div className="min-h-screen bg-medical-green flex items-center justify-center p-4">
-      <div className="bg-white p-10 rounded-3xl shadow-2xl max-w-lg w-full text-center relative">
+    <div className="h-[var(--app-h,100vh)] bg-medical-green flex items-center justify-center p-4 overflow-hidden">
+      <div className="bg-white p-8 rounded-3xl shadow-2xl max-w-lg w-full text-center relative">
         <button onClick={() => setShowResetModal(true)} className="absolute top-4 right-4 text-gray-300 hover:text-red-500">
           <Lock size={20} />
         </button>
-        <div className="mb-8">
-          <img src="./inapp.png" alt="GoertekVina Smart Medical" className="w-full object-contain mb-3" />
+        <div className="mb-5">
+          <img src="./inapp.png" alt="GoertekVina Smart Medical" className="w-full max-h-28 object-contain mb-2" />
           <p className="text-gray-400 text-sm">Hệ thống Y tế Thông minh</p>
         </div>
+
+        {/* Banner chào mừng — hiển thị phòng y tế đang đăng nhập */}
+        {stationName && (
+          <div className="mb-6 rounded-2xl bg-medical-green/10 border-2 border-medical-green/30 px-5 py-3">
+            <p className="text-xs font-bold text-green-600 uppercase tracking-widest mb-0.5">Chào mừng đến / 欢迎来到</p>
+            <p className="text-2xl font-black text-green-700 leading-tight">
+              PHÒNG Y TẾ {stationName.toUpperCase()}
+            </p>
+          </div>
+        )}
 
         <div className="space-y-4 text-left">
           <div>

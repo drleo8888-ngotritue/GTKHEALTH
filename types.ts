@@ -265,6 +265,7 @@ declare global {
       // Sync Progress (manual push from Admin)
       getPushStatus: () => Promise<{ date: string; total: number; pushed: number; pending: number }[]>;
       syncWithProgress: (options?: { pushEncounters?: boolean; pushInventoryLogs?: boolean }) => Promise<any>;
+      resetSyncFlags: () => Promise<{ success: boolean; encounters?: number; inventoryLogs?: number; message?: string }>;
       onSyncProgress: (callback: (data: any) => void) => void;
       removeSyncProgressListener?: () => void;
 

@@ -22,7 +22,9 @@ router.post('/encounters', async (req, res) => {
          VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
         [
           enc.id, enc.patient_id, enc.patient_name, enc.department,
-          station_id || enc.station_id, station_name || enc.station_name,
+          // Tôn trọng trạm GỐC của ca khám (vd máy A6 mang từ C6 sang, ca cũ vẫn là C6).
+          // Chỉ fallback về batch khi record không có station.
+          enc.station_id || station_id, enc.station_name || station_name,
           JSON.stringify(enc.symptoms || []),
           enc.status, enc.start_time, enc.end_time,
           enc.diagnosis || null, enc.disease_group || null,
@@ -74,7 +76,8 @@ router.post('/inventory-logs', async (req, res) => {
           JSON.stringify(log.items || []),
           log.timestamp, log.note || null,
           log.actor_name || null, log.actor_role || null,
-          station_id || log.station_id, station_name || log.station_name,
+          // Tôn trọng trạm GỐC của giao dịch kho, không gán theo máy đang push
+          log.station_id || station_id, log.station_name || station_name,
           receivedAt,
         ]
       );

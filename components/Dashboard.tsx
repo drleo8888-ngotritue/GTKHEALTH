@@ -212,6 +212,13 @@ export const Dashboard: React.FC<DashboardProps> = ({ currentUser, stationConfig
   const [allMedicinesForModal, setAllMedicinesForModal] = useState<any[]>([]);
   const [allEncounters, setAllEncounters] = useState<any[]>([]);
 
+  // Hub/lãnh đạo: số ca theo trạm hôm nay + % so với cùng kỳ hôm qua (từ server /hub/summary)
+  const serverMode = !!currentUser.leaderView;
+  const isHubView = serverMode || stationConfig.type === StationType.HUB;
+  const [stationStats, setStationStats] = useState<{ station: string; today: number; yesterday: number; pct: number | null; rxToday: number; rxPct: number | null }[]>([]);
+  const [todayPct, setTodayPct] = useState<number | null>(null);
+  const [rxTodayPct, setRxTodayPct] = useState<number | null>(null);
+
   // Trend chart state
   const [trendMode, setTrendMode] = useState<'week' | 'month' | 'year'>('week');
   const [weekOffset, setWeekOffset] = useState(0);
@@ -229,8 +236,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ currentUser, stationConfig
 
   const loadData = async () => {
     setIsLoading(true);
-    // Lãnh đạo: máy không có local data → toàn bộ kéo từ server
-    const serverMode = !!currentUser.leaderView;
     try {
       if ((window as any).electron) {
         let medicines: any[];
@@ -319,6 +324,46 @@ export const Dashboard: React.FC<DashboardProps> = ({ currentUser, stationConfig
           }
         } catch { /* ignore */ }
 
+        // ── Hub/lãnh đạo: số ca theo trạm + % vs cùng kỳ hôm qua (server đếm sẵn) ──
+        if (isHubView && (window as any).electron.getHubSummary) {
+          try {
+            const shiftStart = getShiftToday().getTime() - 4 * 60 * 60 * 1000; // 20:00 hôm trước
+            const nowTs = Date.now();
+            const DAY = 24 * 60 * 60 * 1000;
+            const [todayRes, yestRes] = await Promise.all([
+              (window as any).electron.getHubSummary({ from: shiftStart, to: nowTs }),
+              (window as any).electron.getHubSummary({ from: shiftStart - DAY, to: nowTs - DAY }),
+            ]);
+            const todayBy: any[] = todayRes?.data?.by_station || [];
+            const yestBy:  any[] = yestRes?.data?.by_station  || [];
+            const yestMap = new Map(yestBy.map((s: any) => [s.station_name, s]));
+            const pctOf = (now: number, before: number) => before > 0 ? Math.round(((now - before) / before) * 100) : null;
+            const stats = todayBy
+              .filter((s: any) => s.station_name)
+              .map((s: any) => {
+                const y: any = yestMap.get(s.station_name) || { count: 0, prescriptions: 0 };
+                return {
+                  station: s.station_name,
+                  today: s.count, yesterday: y.count || 0, pct: pctOf(s.count, y.count || 0),
+                  rxToday: s.prescriptions || 0, rxPct: pctOf(s.prescriptions || 0, y.prescriptions || 0),
+                };
+              })
+              .sort((a, b) => b.today - a.today);
+            setStationStats(stats);
+
+            const totalToday = todayRes?.data?.total_encounters ?? stats.reduce((s, x) => s + x.today, 0);
+            const totalYest  = yestRes?.data?.total_encounters  ?? 0;
+            setTodayPct(pctOf(totalToday, totalYest));
+            // Tổng kê đơn (từ summary nếu server mới đã có; fallback: cộng theo trạm)
+            const rxTotalToday = todayRes?.data?.prescriptions ?? stats.reduce((s, x) => s + x.rxToday, 0);
+            const rxTotalYest  = yestRes?.data?.prescriptions  ?? yestBy.reduce((s: number, x: any) => s + (x.prescriptions || 0), 0);
+            setRxTodayPct(pctOf(rxTotalToday, rxTotalYest));
+            // Đồng bộ thẻ tổng với summary để khớp tổng các trạm
+            patientsToday = totalToday;
+            if (rxTotalToday) prescriptionsToday = rxTotalToday;
+          } catch (e) { console.warn('Lỗi lấy summary theo trạm:', e); }
+        }
+
         setKpi({ patientsToday, prescriptionsToday, totalStock, expiryAlerts });
       }
     } catch (e) {
@@ -363,11 +408,16 @@ export const Dashboard: React.FC<DashboardProps> = ({ currentUser, stationConfig
   }, [chartData]);
 
   // ── KPI cards ──
+  // breakdown: danh sách theo trạm hiện trong ô (chỉ Hub/lãnh đạo); delta: % tổng vs cùng kỳ hôm qua
   const kpiCards = [
-    { title: 'Bệnh nhân hôm nay', titleZh: '今日就诊', value: kpi.patientsToday, suffix: 'ca khám', icon: Users, bg: 'bg-green-50', iconColor: 'text-green-600', valueColor: 'text-green-700' },
-    { title: 'Kê đơn hôm nay', titleZh: '今日处方', value: kpi.prescriptionsToday, suffix: 'đơn thuốc', icon: ClipboardList, bg: 'bg-blue-50', iconColor: 'text-blue-600', valueColor: 'text-blue-700' },
-    { title: 'Tổng tồn kho', titleZh: '库存总量', value: kpi.totalStock, suffix: 'đơn vị', icon: Package, bg: 'bg-purple-50', iconColor: 'text-purple-600', valueColor: 'text-purple-700' },
-    { title: 'Cảnh báo hạn dùng', titleZh: '效期预警', value: kpi.expiryAlerts, suffix: 'mặt hàng', icon: AlertTriangle, bg: kpi.expiryAlerts > 0 ? 'bg-red-50' : 'bg-gray-50', iconColor: kpi.expiryAlerts > 0 ? 'text-red-500' : 'text-gray-400', valueColor: kpi.expiryAlerts > 0 ? 'text-red-600' : 'text-gray-500' },
+    { title: 'Bệnh nhân hôm nay', titleZh: '今日就诊', value: kpi.patientsToday, suffix: 'ca khám', icon: Users, bg: 'bg-green-50', iconColor: 'text-green-600', valueColor: 'text-green-700',
+      delta: todayPct, breakdown: isHubView ? stationStats.map(s => ({ station: s.station, value: s.today, pct: s.pct })) : null },
+    { title: 'Kê đơn hôm nay', titleZh: '今日处方', value: kpi.prescriptionsToday, suffix: 'đơn thuốc', icon: ClipboardList, bg: 'bg-blue-50', iconColor: 'text-blue-600', valueColor: 'text-blue-700',
+      delta: rxTodayPct, breakdown: isHubView ? stationStats.map(s => ({ station: s.station, value: s.rxToday, pct: s.rxPct })) : null },
+    { title: 'Tổng tồn kho', titleZh: '库存总量', value: kpi.totalStock, suffix: 'đơn vị', icon: Package, bg: 'bg-purple-50', iconColor: 'text-purple-600', valueColor: 'text-purple-700',
+      delta: null, breakdown: null },
+    { title: 'Cảnh báo hạn dùng', titleZh: '效期预警', value: kpi.expiryAlerts, suffix: 'mặt hàng', icon: AlertTriangle, bg: kpi.expiryAlerts > 0 ? 'bg-red-50' : 'bg-gray-50', iconColor: kpi.expiryAlerts > 0 ? 'text-red-500' : 'text-gray-400', valueColor: kpi.expiryAlerts > 0 ? 'text-red-600' : 'text-gray-500',
+      delta: null, breakdown: null },
   ];
 
   const quickLinks = [
@@ -439,12 +489,36 @@ export const Dashboard: React.FC<DashboardProps> = ({ currentUser, stationConfig
                   <div className="w-4 h-4 border-2 border-gray-200 border-t-gray-500 rounded-full animate-spin mt-1"></div>
                 )}
               </div>
-              <div className={`text-4xl font-extrabold ${card.valueColor} mb-1 tabular-nums`}>
+              <div className={`text-4xl font-extrabold ${card.valueColor} mb-1 tabular-nums flex items-baseline gap-2`}>
                 {isLoading ? <span className="text-2xl text-gray-300">...</span> : card.value.toLocaleString('vi-VN')}
+                {!isLoading && card.delta !== null && card.delta !== undefined && (
+                  <span className={`text-sm font-bold ${card.delta >= 0 ? 'text-red-500' : 'text-green-600'}`} title="So với cùng kỳ hôm qua">
+                    {card.delta >= 0 ? '▲' : '▼'} {Math.abs(card.delta)}%
+                  </span>
+                )}
               </div>
               <div className="text-sm font-semibold text-gray-700">{card.title}</div>
               <div className="text-[10px] text-gray-400 leading-tight">{card.titleZh}</div>
               <div className="text-xs text-gray-400 mt-0.5">{isExpiry && kpi.expiryAlerts > 0 ? 'Nhấn để xem / 点击查看' : card.suffix}</div>
+
+              {/* Breakdown theo trạm (Hub/lãnh đạo) — ▲/▼ % so cùng kỳ hôm qua */}
+              {card.breakdown && card.breakdown.length > 0 && (
+                <div className="mt-3 pt-3 border-t border-gray-100 space-y-1.5 max-h-44 overflow-y-auto">
+                  {card.breakdown.map(b => (
+                    <div key={b.station} className="flex items-center justify-between text-xs">
+                      <span className="font-medium text-gray-600 truncate mr-2">{b.station}</span>
+                      <span className="flex items-baseline gap-1.5 shrink-0">
+                        <span className="font-bold text-gray-800 tabular-nums">{b.value}</span>
+                        {b.pct !== null && (
+                          <span className={`font-bold ${b.pct >= 0 ? 'text-red-500' : 'text-green-600'}`}>
+                            {b.pct >= 0 ? '▲' : '▼'}{Math.abs(b.pct)}%
+                          </span>
+                        )}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           );
         })}

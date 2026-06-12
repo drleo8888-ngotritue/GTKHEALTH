@@ -2,7 +2,7 @@ import { User, Role, Medicine, Protocol, Symptom, StationType } from './types';
 
 // --- DANH SÁCH NHÂN SỰ ---
 export const STAFF_LIST: User[] = [
-  { id: '1',  name: 'PHAN THỊ LOAN',       mnv: '0949894', role: Role.ADMIN,     canPrescribe: true, leaderView: true },
+  { id: '1',  name: 'PHAN THỊ LOAN',       mnv: '0949894', role: Role.ADMIN,     canPrescribe: true },
   { id: '2',  name: 'HÀ VĂN MẠNH',         mnv: '0910619', role: Role.STAFF,     canPrescribe: true },
   { id: '3',  name: 'DƯƠNG NGÔ HÙNG',       mnv: '1338733', role: Role.MODERATOR, canPrescribe: true },
   { id: '4',  name: 'NGUYỄN THỊ NHUNG',     mnv: '0710979', role: Role.STAFF,     canPrescribe: true },
@@ -13,7 +13,7 @@ export const STAFF_LIST: User[] = [
   { id: '9',  name: 'NGUYỄN THỊ HUYỀN',     mnv: '1349595', role: Role.STAFF,     canPrescribe: true },
   { id: '10', name: 'NGUYỄN THÚY TRÀ',      mnv: '1439552', role: Role.STAFF,     canPrescribe: true },
   { id: '11', name: 'VŨ THỊ HÀ',            mnv: '0387432', role: Role.STAFF,     canPrescribe: true },
-  { id: '12', name: 'NGÔ TRÍ TUỆ',          mnv: '1638051', role: Role.MODERATOR, canPrescribe: true, leaderView: true },
+  { id: '12', name: 'NGÔ TRÍ TUỆ',          mnv: '1638051', role: Role.MODERATOR, canPrescribe: true },
 ];
 
 // --- 🔥 CẤU HÌNH MẠNG LƯỚI TRẠM (QUAN TRỌNG) 🔥 ---

@@ -142,7 +142,9 @@ router.get('/summary', async (req, res) => {
     const [total, byStation, byDisease, transfers, everRested, currentlyResting] = await Promise.all([
       db.get(`SELECT COUNT(*) as count FROM encounters ${where}`, params),
       db.all(
-        `SELECT station_name, COUNT(*) as count FROM encounters ${where} GROUP BY station_name ORDER BY count DESC`,
+        `SELECT station_name, COUNT(*) as count,
+                SUM(CASE WHEN prescriptions IS NOT NULL AND prescriptions != '' AND prescriptions != '[]' THEN 1 ELSE 0 END) as prescriptions
+         FROM encounters ${where} GROUP BY station_name ORDER BY count DESC`,
         params
       ),
       db.all(

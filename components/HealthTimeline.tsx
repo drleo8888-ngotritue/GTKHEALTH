@@ -213,8 +213,24 @@ export const HealthTimeline: React.FC<Props> = ({ patientId, patientName, depart
       try {
         if (window.electron) {
           const data = await window.electron.getPatientTimeline(patientId);
-          setEncounters(data.encounters || []);
+          const localEnc: Encounter[] = data.encounters || [];
           setCheckups(data.checkups || []);
+
+          // Bổ sung ca từ server (vd công nhân chỉ vào Spoke → máy Hub không có local)
+          // readOnly: chỉ cần Server URL, không phụ thuộc bật/tắt đồng bộ
+          let merged = localEnc;
+          try {
+            const res = await (window as any).electron.queryServerEncounters?.({ patientId, limit: 500 });
+            // Lọc lại theo patientId phía client (phòng server cũ chưa hỗ trợ filter → trả về tất cả)
+            const serverEnc: Encounter[] = (res?.data || []).filter((e: any) => e.patientId === patientId);
+            if (serverEnc.length) {
+              const localIds = new Set(localEnc.map(e => e.id));
+              // Local thắng (đầy đủ hơn); server bổ sung ca chưa có ở local
+              merged = [...localEnc, ...serverEnc.filter(e => !localIds.has(e.id))];
+            }
+          } catch (_) { /* server không tới được → chỉ dùng local */ }
+
+          setEncounters(merged);
         }
       } catch (e) {
         console.error('Lỗi load timeline:', e);

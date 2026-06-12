@@ -875,6 +875,17 @@ ipcMain.handle('hub:query-server-encounters', async (event, opts = {}) => {
   }
 });
 
+// === HUB/lãnh đạo: Timeline (clinical_events) của 1 ca từ server ===
+ipcMain.handle('hub:get-encounter-events', async (event, encounterId) => {
+  try {
+    const data = await syncServer.pullHubEncounterEvents(encounterId);
+    return { success: data !== null, data: data || [] };
+  } catch (err) {
+    console.error('❌ Lỗi lấy timeline ca từ server:', err.message);
+    return { success: false, data: [], message: err.message };
+  }
+});
+
 // === HUB: Số liệu tổng hợp (KPI) từ server — không kéo row thô ===
 ipcMain.handle('hub:get-summary', async (event, opts = {}) => {
   try {

@@ -5,7 +5,7 @@ const db = require('../db');
 // GET /api/hub/encounters?from=<unix_ms>&to=<unix_ms>&station_id=<id>
 router.get('/encounters', async (req, res) => {
   try {
-    const { from, to, station_id, station_name, disease_group, disease_group_not, status, had_rest, limit, offset } = req.query;
+    const { from, to, station_id, station_name, patient_id, disease_group, disease_group_not, status, had_rest, limit, offset } = req.query;
     const params = [];
     let where = 'WHERE 1=1';
 
@@ -13,6 +13,7 @@ router.get('/encounters', async (req, res) => {
     if (to)           { where += ' AND start_time <= ?';  params.push(Number(to)); }
     if (station_id)   { where += ' AND station_id = ?';   params.push(station_id); }
     if (station_name) { where += ' AND station_name = ?'; params.push(station_name); }
+    if (patient_id)   { where += ' AND patient_id = ?';   params.push(patient_id); }
 
     // Bộ lọc drilldown (cho phân trang server giữ đúng filter)
     if (disease_group) {

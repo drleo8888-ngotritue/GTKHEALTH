@@ -124,12 +124,13 @@ async function pullHubReportData(periodMonth, periodYear) {
 // opts: { from, to, stationId, limit, offset, diseaseGroup, diseaseGroupNot, status, hadRest }
 // Trả về full response { success, data, total } để client dựng pagination, hoặc null khi lỗi.
 async function pullHubEncounters(opts = {}) {
-  const { from, to, stationId, stationName, limit, offset, diseaseGroup, diseaseGroupNot, status, hadRest } = opts;
+  const { from, to, stationId, stationName, patientId, limit, offset, diseaseGroup, diseaseGroupNot, status, hadRest } = opts;
   const params = new URLSearchParams();
   if (from) params.set('from', String(from));
   if (to)   params.set('to', String(to));
   if (stationId)   params.set('station_id', stationId);
   if (stationName) params.set('station_name', stationName);
+  if (patientId)   params.set('patient_id', patientId);
   if (limit  !== undefined && limit  !== null) params.set('limit',  String(limit));
   if (offset !== undefined && offset !== null) params.set('offset', String(offset));
   if (diseaseGroup)    params.set('disease_group', diseaseGroup);
@@ -137,6 +138,13 @@ async function pullHubEncounters(opts = {}) {
   if (status)          params.set('status', status);
   if (hadRest)         params.set('had_rest', '1');
   return request('GET', `/api/hub/encounters?${params}`, null, true);
+}
+
+// Hub/lãnh đạo kéo timeline (clinical_events) của 1 ca từ server — để xem người kê đơn, log
+async function pullHubEncounterEvents(encounterId) {
+  if (!encounterId) return null;
+  const res = await request('GET', `/api/hub/encounters/${encodeURIComponent(encounterId)}/events`, null, true);
+  return res?.success ? (res.data || []) : null;
 }
 
 // Hub kéo số liệu tổng hợp (KPI) — server đếm sẵn, không kéo row thô
@@ -215,6 +223,7 @@ module.exports = {
   pullHubReportStatus,
   pullHubReportData,
   pullHubEncounters,
+  pullHubEncounterEvents,
   pullHubSummary,
   pullHubStock,
   createTransfer,

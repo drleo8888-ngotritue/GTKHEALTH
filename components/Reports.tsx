@@ -220,17 +220,24 @@ export const Reports: React.FC<ReportsProps> = ({ stationConfig, currentUser, re
 
   const handleRowClick = async (e: Encounter) => {
     setSelectedEncounter(e);
-    
-    if (window.electron && window.electron.getClinicalEvents) {
-        try {
-            const events = await window.electron.getClinicalEvents(e.id);
-            setTimeline(events || []);
-        } catch (err) {
-            console.error("Lỗi lấy timeline:", err);
-            setTimeline([]);
+
+    // Ca phát sinh ở nơi khác (lãnh đạo, hoặc Hub xem ca Spoke) → log nằm trên server, không có local
+    const fromServer = serverMode || (e as any)._fromServer || e.stationName !== stationConfig.name;
+    try {
+        let events: any[] = [];
+        if (fromServer && (window as any).electron?.getServerEncounterEvents) {
+            const res = await (window as any).electron.getServerEncounterEvents(e.id);
+            events = res?.data || [];
         }
-    } else {
-        setTimeline([]); 
+        // Ca local, hoặc server chưa có (fallback)
+        if ((!events || events.length === 0) && window.electron?.getClinicalEvents) {
+            const local = await window.electron.getClinicalEvents(e.id);
+            if (local && local.length) events = local;
+        }
+        setTimeline(events || []);
+    } catch (err) {
+        console.error("Lỗi lấy timeline:", err);
+        setTimeline([]);
     }
 
     const isOpen = e.stationName === stationConfig.name && (e.status === EncounterStatus.REST_30 || e.status === EncounterStatus.MONITOR || e.status === EncounterStatus.IN_PROGRESS);

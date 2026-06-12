@@ -91,6 +91,9 @@ contextBridge.exposeInMainWorld('electron', {
   // --- HUB: Số liệu tổng hợp KPI từ server ---
   getHubSummary: (params) => ipcRenderer.invoke('hub:get-summary', params),
 
+  // --- HUB/lãnh đạo: Timeline (người kê đơn, log) của 1 ca từ server ---
+  getServerEncounterEvents: (encounterId) => ipcRenderer.invoke('hub:get-encounter-events', encounterId),
+
   // --- HUB: Đẩy phác đồ lên server ---
   pushProtocolsToServer: (protocols) => ipcRenderer.invoke('hub:push-protocols', protocols),
 

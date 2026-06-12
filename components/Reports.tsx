@@ -136,10 +136,10 @@ export const Reports: React.FC<ReportsProps> = ({ stationConfig, currentUser, re
                 // Dedup: ưu tiên LOCAL (đầy đủ hơn: có chẩn đoán, giờ ra)
                 // Server chỉ bổ sung ca Spoke mà Hub chưa có local
                 const localIds = new Set(localList.map((e: any) => e.id));
-                // Chỉ bổ sung ca của Spoke (stationName khác Hub) từ server
-                // Ca của chính Hub chỉ lấy từ local — tránh resurrect sau khi xóa
+                // Server bổ sung MỌI ca chưa có ở local — kể cả ca của chính Hub
+                // (phòng local Hub trống/reset thì vẫn thấy data của mình; local thắng khi trùng id)
                 const spokeOnly = serverData
-                  .filter((e: any) => !localIds.has(e.id) && e.stationName !== stationConfig.name)
+                  .filter((e: any) => !localIds.has(e.id))
                   .map((e: any) => ({ ...e, _fromServer: true }));
                 const merged = [...localList, ...spokeOnly];
                 // Final dedup theo ID

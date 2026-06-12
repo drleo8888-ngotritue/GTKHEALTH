@@ -297,10 +297,10 @@ export const Dashboard: React.FC<DashboardProps> = ({ currentUser, stationConfig
             ]);
             const serverData: any[] = serverRes?.data || [];
             const localList: any[] = localData || [];
-            // Local thắng (đầy đủ hơn), server chỉ bổ sung ca Spoke chưa có local
-            // Ca của chính Hub chỉ từ local — tránh resurrect sau khi xóa
+            // Local thắng (đầy đủ hơn); server bổ sung MỌI ca chưa có ở local —
+            // kể cả ca của chính Hub (phòng local trống/reset thì vẫn thấy data của mình)
             const localIds = new Set(localList.map((e: any) => e.id));
-            const merged = [...localList, ...serverData.filter((e: any) => !localIds.has(e.id) && e.stationName !== stationConfig.name)];
+            const merged = [...localList, ...serverData.filter((e: any) => !localIds.has(e.id))];
             const seen = new Set<string>();
             encounters = merged.filter((e: any) => seen.has(e.id) ? false : (seen.add(e.id), true));
           } else {
@@ -311,58 +311,39 @@ export const Dashboard: React.FC<DashboardProps> = ({ currentUser, stationConfig
           if (encounters) {
             // Dùng cùng logic toShiftDay với trend chart để KPI luôn khớp
             const todayKey = todayShiftKey();
-            const todayList = encounters.filter((e: any) =>
-              e.startTime && toShiftDay(e.startTime) === todayKey
-            );
-            patientsToday = todayList.length;
-            prescriptionsToday = todayList.filter((e: any) => {
-              const rx = typeof e.prescriptions === 'string'
-                ? JSON.parse(e.prescriptions || '[]')
-                : (e.prescriptions || []);
+            const yKey = toShiftDay(Date.now() - 24 * 60 * 60 * 1000);
+            const hasRx = (e: any) => {
+              const rx = typeof e.prescriptions === 'string' ? JSON.parse(e.prescriptions || '[]') : (e.prescriptions || []);
               return rx.length > 0;
-            }).length;
+            };
+            const todayList = encounters.filter((e: any) => e.startTime && toShiftDay(e.startTime) === todayKey);
+            patientsToday = todayList.length;
+            prescriptionsToday = todayList.filter(hasRx).length;
+
+            // Breakdown theo trạm (Hub/lãnh đạo) — tính từ chính encounters đã load, % vs cùng kỳ hôm qua
+            if (isHubView) {
+              const acc: Record<string, { today: number; yesterday: number; rxToday: number; rxYesterday: number }> = {};
+              for (const e of encounters) {
+                if (!e.startTime) continue;
+                const sd = toShiftDay(e.startTime);
+                if (sd !== todayKey && sd !== yKey) continue;
+                const st = e.stationName || '—';
+                if (!acc[st]) acc[st] = { today: 0, yesterday: 0, rxToday: 0, rxYesterday: 0 };
+                const rx = hasRx(e);
+                if (sd === todayKey) { acc[st].today++; if (rx) acc[st].rxToday++; }
+                else { acc[st].yesterday++; if (rx) acc[st].rxYesterday++; }
+              }
+              const pctOf = (n: number, b: number) => b > 0 ? Math.round(((n - b) / b) * 100) : null;
+              const stats = Object.entries(acc).map(([station, v]) => ({
+                station, today: v.today, yesterday: v.yesterday, pct: pctOf(v.today, v.yesterday),
+                rxToday: v.rxToday, rxPct: pctOf(v.rxToday, v.rxYesterday),
+              })).sort((a, b) => b.today - a.today);
+              setStationStats(stats);
+              setTodayPct(pctOf(stats.reduce((s, x) => s + x.today, 0), stats.reduce((s, x) => s + x.yesterday, 0)));
+              setRxTodayPct(pctOf(stats.reduce((s, x) => s + x.rxToday, 0), stats.reduce((s, x) => s + x.rxYesterday, 0)));
+            }
           }
         } catch { /* ignore */ }
-
-        // ── Hub/lãnh đạo: số ca theo trạm + % vs cùng kỳ hôm qua (server đếm sẵn) ──
-        if (isHubView && (window as any).electron.getHubSummary) {
-          try {
-            const shiftStart = getShiftToday().getTime() - 4 * 60 * 60 * 1000; // 20:00 hôm trước
-            const nowTs = Date.now();
-            const DAY = 24 * 60 * 60 * 1000;
-            const [todayRes, yestRes] = await Promise.all([
-              (window as any).electron.getHubSummary({ from: shiftStart, to: nowTs }),
-              (window as any).electron.getHubSummary({ from: shiftStart - DAY, to: nowTs - DAY }),
-            ]);
-            const todayBy: any[] = todayRes?.data?.by_station || [];
-            const yestBy:  any[] = yestRes?.data?.by_station  || [];
-            const yestMap = new Map(yestBy.map((s: any) => [s.station_name, s]));
-            const pctOf = (now: number, before: number) => before > 0 ? Math.round(((now - before) / before) * 100) : null;
-            const stats = todayBy
-              .filter((s: any) => s.station_name)
-              .map((s: any) => {
-                const y: any = yestMap.get(s.station_name) || { count: 0, prescriptions: 0 };
-                return {
-                  station: s.station_name,
-                  today: s.count, yesterday: y.count || 0, pct: pctOf(s.count, y.count || 0),
-                  rxToday: s.prescriptions || 0, rxPct: pctOf(s.prescriptions || 0, y.prescriptions || 0),
-                };
-              })
-              .sort((a, b) => b.today - a.today);
-            setStationStats(stats);
-
-            const totalToday = todayRes?.data?.total_encounters ?? stats.reduce((s, x) => s + x.today, 0);
-            const totalYest  = yestRes?.data?.total_encounters  ?? 0;
-            setTodayPct(pctOf(totalToday, totalYest));
-            // Tổng kê đơn (từ summary nếu server mới đã có; fallback: cộng theo trạm)
-            const rxTotalToday = todayRes?.data?.prescriptions ?? stats.reduce((s, x) => s + x.rxToday, 0);
-            const rxTotalYest  = yestRes?.data?.prescriptions  ?? yestBy.reduce((s: number, x: any) => s + (x.prescriptions || 0), 0);
-            setRxTodayPct(pctOf(rxTotalToday, rxTotalYest));
-            // Đồng bộ thẻ tổng với summary để khớp tổng các trạm
-            patientsToday = totalToday;
-            if (rxTotalToday) prescriptionsToday = rxTotalToday;
-          } catch (e) { console.warn('Lỗi lấy summary theo trạm:', e); }
-        }
 
         setKpi({ patientsToday, prescriptionsToday, totalStock, expiryAlerts });
       }

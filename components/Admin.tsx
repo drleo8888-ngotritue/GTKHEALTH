@@ -1129,6 +1129,12 @@ export const Admin: React.FC<AdminProps> = ({ currentUser }) => {
                             )}
                         </div>
                         <div className="flex gap-2 flex-wrap">
+                            {/* Tải bản mẫu danh sách nhân viên */}
+                            <button
+                                onClick={downloadEmployeeTemplate}
+                                className="bg-green-50 text-green-700 border border-green-300 px-3 py-2 rounded-lg font-bold flex items-center hover:bg-green-100 cursor-pointer text-sm">
+                                <FileSpreadsheet size={15} className="mr-1.5 shrink-0"/><span>Tải mẫu NV<span className="block text-[9px] font-normal opacity-80 leading-tight">下载模板</span></span>
+                            </button>
                             {/* Upload danh sách nhân viên */}
                             <label className="bg-green-600 text-white px-4 py-2 rounded-lg font-bold flex items-center hover:bg-green-700 cursor-pointer">
                                 <Upload size={18} className="mr-2 shrink-0"/><span>Import DS Nhân viên<span className="block text-[9px] font-normal opacity-80 leading-tight">导入员工名单</span></span>

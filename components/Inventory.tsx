@@ -1049,9 +1049,12 @@ export const Inventory: React.FC<InventoryProps> = ({ stationConfig, refreshTrig
                       </label>
                   </div>
 
-                  <div className="p-5 border-b border-gray-100">
+                  <div className="p-5 border-b border-gray-100 space-y-2">
                       <button disabled={isLoading} onClick={() => excelInputRef.current?.click()} className="flex items-center w-full justify-center px-4 py-3 bg-white border-2 border-dashed border-gray-300 text-gray-600 rounded-xl font-bold hover:bg-green-50 hover:text-green-700 hover:border-green-500 transition-all disabled:opacity-50 text-sm">
                           <FileSpreadsheet className="mr-2 shrink-0" size={20}/><span>Chọn file Excel để nhập nhanh<span className="block text-[9px] font-normal opacity-70 leading-tight">选择Excel文件批量导入</span></span>
+                      </button>
+                      <button type="button" onClick={downloadInventoryTemplate} className="flex items-center w-full justify-center px-4 py-2 bg-green-50 text-green-700 border border-green-300 rounded-lg font-bold hover:bg-green-100 transition-all text-sm">
+                          <Download className="mr-2 shrink-0" size={16}/><span>Tải file Excel mẫu<span className="block text-[9px] font-normal opacity-70 leading-tight">下载Excel模板</span></span>
                       </button>
                   </div>
 

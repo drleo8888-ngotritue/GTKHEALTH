@@ -351,6 +351,20 @@ export const KskImportWizard: React.FC<Props> = ({ year, onSuccess, onCancel }) 
     }
   };
 
+  // ── Tải bản mẫu Excel ──────────────────────────────────────────────────────
+  const downloadTemplate = () => {
+    const rows = [
+      ['Mã NV', 'Họ và tên', 'Bộ phận', 'Kết luận SK', 'Kết luận bệnh', 'Huyết áp (mmHg)', 'Nhịp tim (lần/ph)', 'Chiều cao (cm)', 'Cân nặng (kg)', 'BMI', 'Thị lực mắt P', 'Thị lực mắt T'],
+      ['GTK001', 'NGUYỄN VĂN A', 'Sản xuất', 'Loại I',  'Không có bệnh lý',   '120/80', '72', '170', '65', '22.5', '10/10', '10/10'],
+      ['GTK002', 'TRẦN THỊ B',   'Kho vận',  'Loại II', 'Cận thị, thừa cân', '130/85', '78', '158', '70', '28.0', '6/10',  '8/10'],
+    ];
+    const ws = XLSX.utils.aoa_to_sheet(rows);
+    ws['!cols'] = [{ wch: 14 }, { wch: 24 }, { wch: 18 }, { wch: 14 }, { wch: 28 }, { wch: 18 }, { wch: 20 }, { wch: 16 }, { wch: 14 }, { wch: 10 }, { wch: 16 }, { wch: 16 }];
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, `KSK_${year}`);
+    XLSX.writeFile(wb, `template_KSK_${year}.xlsx`);
+  };
+
   const handleImport = async () => {
     if (!parsed || !mapping.idCol) return;
     if (!window.electron) { setError('Chỉ dùng được trên app desktop.'); return; }
@@ -440,14 +454,26 @@ export const KskImportWizard: React.FC<Props> = ({ year, onSuccess, onCancel }) 
 
           {/* Step 1: Upload */}
           {step === 'upload' && (
-            <div
-              className="border-2 border-dashed border-blue-300 rounded-xl p-10 flex flex-col items-center gap-4 cursor-pointer hover:bg-blue-50 transition"
-              onClick={() => fileInputRef.current?.click()}>
-              <input ref={fileInputRef} type="file" accept=".xlsx,.xls" className="hidden" onChange={handleFileChange}/>
-              <Upload size={40} className="text-blue-400"/>
-              <div className="text-center">
-                <p className="font-bold text-slate-700">Nhấn để chọn file Excel (.xlsx / .xls)</p>
-                <p className="text-sm text-slate-400 mt-1">Tự nhận diện header đơn tầng và đa tầng (merged cells)</p>
+            <div className="space-y-4">
+              <div
+                className="border-2 border-dashed border-blue-300 rounded-xl p-10 flex flex-col items-center gap-4 cursor-pointer hover:bg-blue-50 transition"
+                onClick={() => fileInputRef.current?.click()}>
+                <input ref={fileInputRef} type="file" accept=".xlsx,.xls" className="hidden" onChange={handleFileChange}/>
+                <Upload size={40} className="text-blue-400"/>
+                <div className="text-center">
+                  <p className="font-bold text-slate-700">Nhấn để chọn file Excel (.xlsx / .xls)</p>
+                  <p className="text-sm text-slate-400 mt-1">Tự nhận diện header đơn tầng và đa tầng (merged cells)</p>
+                </div>
+              </div>
+
+              <div className="flex justify-center">
+                <button
+                  onClick={downloadTemplate}
+                  className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-blue-700 bg-blue-50 border border-blue-300 rounded-lg hover:bg-blue-100 transition-colors"
+                >
+                  <FileSpreadsheet size={16} />
+                  Tải bản mẫu Excel / 下载模板
+                </button>
               </div>
             </div>
           )}

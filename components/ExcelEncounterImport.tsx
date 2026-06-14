@@ -244,6 +244,23 @@ export const ExcelEncounterImport: React.FC<Props> = ({ onClose, onSuccess }) =>
     reader.readAsArrayBuffer(file);
   }, []);
 
+  // ── Tải bản mẫu Excel ──────────────────────────────────────────────────────
+  const downloadTemplate = useCallback(() => {
+    const sampleMeds = dbMedicines.slice(0, 2).map(m => m.name);
+    const med1 = sampleMeds[0] || 'Paracetamol 500mg';
+    const med2 = sampleMeds[1] || 'Vitamin C';
+    const rows = [
+      ['Trạng thái', 'STT', 'Ngày', 'Mã NV', 'Họ tên', 'Chẩn đoán', 'Nhóm bệnh', 'Giờ vào', 'Giờ ra', med1, med2],
+      ['',  1, '13/06/2026', 'GTK001', 'NGUYỄN VĂN A', 'Cảm cúm',         'Hô hấp',     '08:30', '08:45', 2, 1],
+      ['x', 2, '13/06/2026', 'GTK002', 'TRẦN THỊ B',   'Chấn thương tay', 'Tai nạn LĐ', '09:00', '09:20', '', ''],
+    ];
+    const ws = XLSX.utils.aoa_to_sheet(rows);
+    ws['!cols'] = [{ wch: 10 }, { wch: 5 }, { wch: 12 }, { wch: 12 }, { wch: 24 }, { wch: 24 }, { wch: 16 }, { wch: 9 }, { wch: 9 }, { wch: 18 }, { wch: 14 }];
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Ca_kham');
+    XLSX.writeFile(wb, 'template_ca_kham.xlsx');
+  }, [dbMedicines]);
+
   const parseSheet = useCallback((sheetName: string) => {
     if (!workbook) return;
     const ws = workbook.Sheets[sheetName];
@@ -557,6 +574,16 @@ export const ExcelEncounterImport: React.FC<Props> = ({ onClose, onSuccess }) =>
                 <Upload size={36} className="mx-auto text-gray-400 mb-3" />
                 <p className="text-gray-600 font-medium">Kéo thả hoặc click để chọn file Excel</p>
                 <p className="text-gray-400 text-sm mt-1">.xlsx / .xls</p>
+              </div>
+
+              <div className="flex justify-center">
+                <button
+                  onClick={downloadTemplate}
+                  className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-emerald-700 bg-emerald-50 border border-emerald-300 rounded-lg hover:bg-emerald-100 transition-colors"
+                >
+                  <FileSpreadsheet size={16} />
+                  Tải bản mẫu Excel / 下载模板
+                </button>
               </div>
 
               {filename && (

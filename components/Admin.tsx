@@ -432,7 +432,7 @@ export const Admin: React.FC<AdminProps> = ({ currentUser }) => {
       e.target.value = '';
 
       const reader = new FileReader();
-      reader.onload = (evt) => {
+      reader.onload = async (evt) => {
           const bstr = evt.target?.result;
           const wb = XLSX.read(bstr, { type: 'binary' });
           const ws = wb.Sheets[wb.SheetNames[0]];
@@ -460,7 +460,20 @@ export const Admin: React.FC<AdminProps> = ({ currentUser }) => {
               setEmpTotal(storage.getPatientCount());
               setEmpResults([]);
               setEmpSearch('');
-              alert(`✅ Hoàn tất nhập danh sách nhân viên!\n• ${newCount} nhân viên mới thêm\n• ${updatedCount} nhân viên cập nhật\n• ${importedPatients.length - newCount - updatedCount} không thay đổi`);
+
+              let serverMsg = '';
+              // Chỉ Hub đẩy danh sách nhân viên lên server; Spoke pull về lúc khởi động.
+              if (isHub && window.electron?.pushEmployees) {
+                  const payload = importedPatients.map(p => ({ id_nv: p.id, ho_ten: p.name, bo_phan: p.department || '' }));
+                  const res = await window.electron.pushEmployees(payload);
+                  serverMsg = res?.success
+                      ? `\n\n☁️ Đã đẩy lên server — các trạm Spoke sẽ tự cập nhật khi khởi động.`
+                      : `\n\n⚠️ Chưa đẩy được lên server: ${res?.message || 'không rõ lỗi'}. Dữ liệu vẫn lưu tại máy này.`;
+              } else if (!isHub) {
+                  serverMsg = `\n\nℹ️ Đây là trạm Spoke — danh sách chỉ lưu cục bộ. Việc nạp NV toàn hệ thống do Hub thực hiện.`;
+              }
+
+              alert(`✅ Hoàn tất nhập danh sách nhân viên!\n• ${newCount} nhân viên mới thêm\n• ${updatedCount} nhân viên cập nhật\n• ${importedPatients.length - newCount - updatedCount} không thay đổi${serverMsg}`);
           } else {
               setImportFail({
                   type: 'employee',

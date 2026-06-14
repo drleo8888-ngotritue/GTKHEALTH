@@ -101,6 +101,12 @@ async function pullEmployees() {
   return res?.success ? (res.data || []) : null;
 }
 
+// Hub đẩy danh sách nhân viên lên server (Spoke sẽ pullEmployees về)
+async function pushEmployees(employees) {
+  if (!Array.isArray(employees) || employees.length === 0) return null;
+  return request('POST', '/api/admin/employees', { employees });
+}
+
 // Spoke push báo cáo thuốc tháng lên server
 async function pushMedicineReport({ station, periodType, periodMonth, periodYear, items }) {
   return request('POST', '/api/sync/medicine-report', {
@@ -219,6 +225,7 @@ module.exports = {
   pushInventoryLogs,
   pushMedicinesStock,
   pullEmployees,
+  pushEmployees,
   pushMedicineReport,
   pullHubReportStatus,
   pullHubReportData,

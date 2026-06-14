@@ -45,6 +45,16 @@ router.post('/encounters', async (req, res) => {
         }
       }
 
+      // Spoke bổ sung NV mới: NV chưa có trên server thì thêm từ chính ca khám (đủ các trường).
+      // INSERT OR IGNORE → KHÔNG bao giờ đè bản đã có (giữ nguyên dữ liệu Hub/đã tồn tại).
+      if (enc.patient_id && enc.patient_name) {
+        await db.run(
+          `INSERT OR IGNORE INTO employees (id_nv, ho_ten, bo_phan, source, created_station, updated_at)
+           VALUES (?,?,?, 'SPOKE', ?, ?)`,
+          [enc.patient_id, enc.patient_name, enc.department || '', enc.station_name || station_name || '', receivedAt]
+        );
+      }
+
       received_ids.push(enc.id);
     } catch (err) {
       console.error('Lỗi lưu encounter:', enc.id, err.message);

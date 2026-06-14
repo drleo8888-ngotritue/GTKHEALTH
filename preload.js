@@ -48,6 +48,7 @@ contextBridge.exposeInMainWorld('electron', {
   updateServerStationConfig: (s)      => ipcRenderer.invoke('server-sync:update-station', s),
   syncNow:                   ()       => ipcRenderer.invoke('server-sync:sync-now'),
   pullEmployees:             ()       => ipcRenderer.invoke('server-sync:pull-employees'),
+  pushEmployees:             (emps)   => ipcRenderer.invoke('server-sync:push-employees', emps),
 
   // --- CHỐT KỲ ---
   createSupplementaryEncounter: (data) => ipcRenderer.invoke('db:create-supplementary-encounter', data),

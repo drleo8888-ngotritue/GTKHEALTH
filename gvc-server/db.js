@@ -100,6 +100,12 @@ async function init() {
     bo_phan TEXT,
     updated_at INTEGER
   )`);
+  // Migrate: phân biệt NV do Hub import chính thức ('HUB') vs Spoke bổ sung từ ca khám ('SPOKE')
+  const empMigrations = [
+    `ALTER TABLE employees ADD COLUMN source TEXT DEFAULT 'HUB'`,
+    `ALTER TABLE employees ADD COLUMN created_station TEXT`,
+  ];
+  for (const sql of empMigrations) { try { await run(sql); } catch (_) {} }
 
   await run(`CREATE TABLE IF NOT EXISTS medicines_master (
     id TEXT PRIMARY KEY,

@@ -1223,3 +1223,14 @@ ipcMain.handle('server-sync:pull-employees', async () => {
     return { success: false, data: [] };
   }
 });
+
+// Hub gọi sau khi import — đẩy danh sách nhân viên lên server
+ipcMain.handle('server-sync:push-employees', async (_e, employees) => {
+  try {
+    const res = await syncServer.pushEmployees(employees);
+    if (!res) return { success: false, message: 'Không có nhân viên để đẩy hoặc sync chưa bật' };
+    return { success: !!res.success, message: res.message };
+  } catch (err) {
+    return { success: false, message: err?.message || 'Lỗi đẩy nhân viên lên server' };
+  }
+});

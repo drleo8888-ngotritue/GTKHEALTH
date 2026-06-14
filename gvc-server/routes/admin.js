@@ -14,7 +14,7 @@ router.post('/employees', async (req, res) => {
   for (const emp of employees) {
     if (!emp.id_nv || !emp.ho_ten) continue;
     await db.run(
-      `INSERT OR REPLACE INTO employees (id_nv, ho_ten, bo_phan, updated_at) VALUES (?,?,?,?)`,
+      `INSERT OR REPLACE INTO employees (id_nv, ho_ten, bo_phan, source, updated_at) VALUES (?,?,?, 'HUB', ?)`,
       [emp.id_nv, emp.ho_ten, emp.bo_phan || '', now]
     );
     count++;

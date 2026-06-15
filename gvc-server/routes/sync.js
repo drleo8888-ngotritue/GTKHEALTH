@@ -14,12 +14,22 @@ router.post('/encounters', async (req, res) => {
 
   for (const enc of records) {
     try {
+      // UPSERT giữ nguyên deleted_at/deleted_by/delete_reason: nếu Hub đã gỡ ca này,
+      // re-push từ Spoke chỉ cập nhật dữ liệu, KHÔNG làm ca sống lại.
       await db.run(
-        `INSERT OR REPLACE INTO encounters
+        `INSERT INTO encounters
           (id, patient_id, patient_name, department, station_id, station_name,
            symptoms, status, start_time, end_time, diagnosis, disease_group,
            prescriptions, had_rest_at_room, is_supplementary, received_at)
-         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+         ON CONFLICT(id) DO UPDATE SET
+           patient_id=excluded.patient_id, patient_name=excluded.patient_name,
+           department=excluded.department, station_id=excluded.station_id,
+           station_name=excluded.station_name, symptoms=excluded.symptoms,
+           status=excluded.status, start_time=excluded.start_time, end_time=excluded.end_time,
+           diagnosis=excluded.diagnosis, disease_group=excluded.disease_group,
+           prescriptions=excluded.prescriptions, had_rest_at_room=excluded.had_rest_at_room,
+           is_supplementary=excluded.is_supplementary, received_at=excluded.received_at`,
         [
           enc.id, enc.patient_id, enc.patient_name, enc.department,
           // Tôn trọng trạm GỐC của ca khám (vd máy A6 mang từ C6 sang, ca cũ vẫn là C6).

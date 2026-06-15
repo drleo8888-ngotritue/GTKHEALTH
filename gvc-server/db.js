@@ -55,6 +55,13 @@ async function init() {
     is_supplementary INTEGER DEFAULT 0,
     received_at INTEGER
   )`);
+  // Migrate: soft-delete (chỉ Hub gỡ ca rác) — giữ bản ghi để audit, ẩn khỏi mọi view
+  const encMigrations = [
+    `ALTER TABLE encounters ADD COLUMN deleted_at INTEGER`,
+    `ALTER TABLE encounters ADD COLUMN deleted_by TEXT`,
+    `ALTER TABLE encounters ADD COLUMN delete_reason TEXT`,
+  ];
+  for (const sql of encMigrations) { try { await run(sql); } catch (_) {} }
 
   await run(`CREATE TABLE IF NOT EXISTS clinical_events (
     id TEXT PRIMARY KEY,

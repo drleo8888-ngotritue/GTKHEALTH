@@ -38,6 +38,7 @@ router.get('/encounters', async (req, res) => {
       if (sts.length) { where += ` AND status IN (${sts.map(() => '?').join(',')})`; params.push(...sts); }
     }
     if (had_rest === '1') { where += ' AND had_rest_at_room = 1'; }
+    where += ' AND deleted_at IS NULL'; // ẩn ca đã bị Hub gỡ (soft-delete)
 
     const parseArr = (v) => { try { const p = JSON.parse(v || '[]'); return Array.isArray(p) ? p : []; } catch { return []; } };
 
@@ -79,6 +80,23 @@ router.get('/encounters/:id/events', async (req, res) => {
       [req.params.id]
     );
     res.json({ success: true, data: rows });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// POST /api/hub/encounters/:id/delete — Hub gỡ ca rác (soft-delete, giữ bản ghi để audit)
+router.post('/encounters/:id/delete', async (req, res) => {
+  try {
+    const { actor, reason } = req.body || {};
+    const r = await db.run(
+      `UPDATE encounters SET deleted_at = ?, deleted_by = ?, delete_reason = ? WHERE id = ? AND deleted_at IS NULL`,
+      [Date.now(), actor || null, reason || null, req.params.id]
+    );
+    if (!r || r.changes === 0) {
+      return res.json({ success: false, message: 'Không tìm thấy ca (hoặc đã gỡ trước đó).' });
+    }
+    res.json({ success: true, message: 'Đã gỡ ca khỏi hệ thống.' });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }
@@ -138,6 +156,7 @@ router.get('/summary', async (req, res) => {
     if (to)           { where += ' AND start_time <= ?';  params.push(Number(to)); }
     if (station_id)   { where += ' AND station_id = ?';   params.push(station_id); }
     if (station_name) { where += ' AND station_name = ?'; params.push(station_name); }
+    where += ' AND deleted_at IS NULL'; // ẩn ca đã bị Hub gỡ (soft-delete)
 
     const [total, byStation, byDisease, transfers, everRested, currentlyResting] = await Promise.all([
       db.get(`SELECT COUNT(*) as count FROM encounters ${where}`, params),

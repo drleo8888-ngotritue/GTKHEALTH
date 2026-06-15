@@ -283,6 +283,27 @@ export const Reports: React.FC<ReportsProps> = ({ stationConfig, currentUser, re
     loadData();
   };
 
+  // Hub gỡ ca rác trên SERVER (soft-delete): ẩn khỏi mọi báo cáo, giữ bản ghi để audit.
+  const handleServerDeleteEncounter = async (enc: any, ev: React.MouseEvent) => {
+    ev.stopPropagation();
+    const reason = window.prompt(
+      `Gỡ ca của "${enc.patientName}" (${enc.stationName}) khỏi hệ thống?\n` +
+      `Ca sẽ bị ẩn khỏi mọi báo cáo (vẫn giữ bản ghi để truy vết).\n\nNhập lý do (bắt buộc):`
+    );
+    if (reason === null) return;                 // bấm Hủy
+    if (!reason.trim()) { alert('Cần nhập lý do để gỡ ca.'); return; }
+    if (!window.electron?.softDeleteServerEncounter) { alert('Chỉ dùng được trên app desktop.'); return; }
+    const res = await window.electron.softDeleteServerEncounter({ id: enc.id, actor: currentUser?.name, reason: reason.trim() });
+    if (res?.success) {
+      await window.electron.purgeEncounter?.(enc.id); // xoá bản local đã import (no-op nếu không có)
+      if (selectedEncounter?.id === enc.id) closeModal();
+      setReloadKey(k => k + 1);
+      loadData();
+    } else {
+      alert('Không gỡ được ca trên server: ' + (res?.message || 'lỗi không rõ'));
+    }
+  };
+
   const handleUpdateStatus = async (newStatus: EncounterStatus) => {
       if (!selectedEncounter) return;
       
@@ -922,12 +943,17 @@ export const Reports: React.FC<ReportsProps> = ({ stationConfig, currentUser, re
                          </td>
                          <td className="py-1.5 px-2 text-gray-400 whitespace-nowrap">{e.stationName}</td>
                          <td className="py-1.5 px-2" onClick={ev => ev.stopPropagation()}>
-                           {e.stationName === stationConfig.name && (
+                           {stationConfig.type === StationType.HUB ? (
+                             <button onClick={(ev) => handleServerDeleteEncounter(e, ev)} title="Gỡ ca khỏi hệ thống / 从系统移除"
+                               className="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded text-red-400 hover:text-red-600 hover:bg-red-100">
+                               <Trash2 size={13}/>
+                             </button>
+                           ) : e.stationName === stationConfig.name ? (
                              <button onClick={(ev) => handleDeleteEncounter(e.id, e.patientName, ev)} title="Xóa"
                                className="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded text-red-400 hover:text-red-600 hover:bg-red-100">
                                <Trash2 size={13}/>
                              </button>
-                           )}
+                           ) : null}
                          </td>
                       </tr>
                       );

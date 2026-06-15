@@ -49,6 +49,8 @@ contextBridge.exposeInMainWorld('electron', {
   syncNow:                   ()       => ipcRenderer.invoke('server-sync:sync-now'),
   pullEmployees:             ()       => ipcRenderer.invoke('server-sync:pull-employees'),
   pushEmployees:             (emps)   => ipcRenderer.invoke('server-sync:push-employees', emps),
+  softDeleteServerEncounter: (p)      => ipcRenderer.invoke('server-sync:soft-delete-encounter', p),
+  purgeEncounter:            (id)     => ipcRenderer.invoke('db:purge-encounter', id),
 
   // --- CHỐT KỲ ---
   createSupplementaryEncounter: (data) => ipcRenderer.invoke('db:create-supplementary-encounter', data),

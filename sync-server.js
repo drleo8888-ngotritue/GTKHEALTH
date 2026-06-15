@@ -171,6 +171,12 @@ async function pullHubStock(stationId) {
   return res?.success ? (res.data || []) : null;
 }
 
+// Hub gỡ ca rác trên server (soft-delete)
+async function softDeleteEncounter(id, actor, reason) {
+  if (!id) return null;
+  return request('POST', `/api/hub/encounters/${encodeURIComponent(id)}/delete`, { actor, reason });
+}
+
 // Hub tạo phiếu điều chuyển thuốc
 async function createTransfer({ id, sourceStation, targetStation, createdBy, medicines, note }) {
   return request('POST', '/api/hub/transfers', {
@@ -233,6 +239,7 @@ module.exports = {
   pullHubEncounterEvents,
   pullHubSummary,
   pullHubStock,
+  softDeleteEncounter,
   createTransfer,
   getHubTransfers,
   pullPendingTransfers,

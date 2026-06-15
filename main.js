@@ -1234,3 +1234,24 @@ ipcMain.handle('server-sync:push-employees', async (_e, employees) => {
     return { success: false, message: err?.message || 'Lỗi đẩy nhân viên lên server' };
   }
 });
+
+// Hub gỡ ca rác trên server (soft-delete)
+ipcMain.handle('server-sync:soft-delete-encounter', async (_e, { id, actor, reason } = {}) => {
+  try {
+    const res = await syncServer.softDeleteEncounter(id, actor, reason);
+    if (!res) return { success: false, message: 'Sync chưa bật hoặc thiếu id' };
+    return { success: !!res.success, message: res.message };
+  } catch (err) {
+    return { success: false, message: err?.message || 'Lỗi gỡ ca trên server' };
+  }
+});
+
+// Xoá CỨNG bản ghi ca khám ở local mà KHÔNG hoàn kho — dùng khi Hub dọn ca rác của trạm khác
+ipcMain.handle('db:purge-encounter', async (_e, id) => {
+  try {
+    await dbService.purgeEncounter(id);
+    return { success: true };
+  } catch (err) {
+    return { success: false, message: err?.message };
+  }
+});

@@ -725,6 +725,14 @@ module.exports = {
       return true;
   },
 
+  // Xoá CỨNG bản ghi local KHÔNG hoàn kho — dùng khi Hub dọn ca rác (kho thuộc trạm khác,
+  // hoàn kho ở máy Hub sẽ làm sai tồn kho). No-op nếu id không tồn tại tại local.
+  purgeEncounter: async (id) => {
+      await runQuery(`DELETE FROM encounters WHERE id = ?`, [id]);
+      await runQuery(`DELETE FROM clinical_events WHERE encounter_id = ?`, [id]);
+      return true;
+  },
+
   importSyncedData: async (data) => {
       let count = 0;
       if (data.encounters && data.encounters.length > 0) {

@@ -216,6 +216,8 @@ declare global {
       syncNow:                   () => Promise<{ success: boolean; unsyncedCount?: any }>;
       pullEmployees:             () => Promise<{ success: boolean; data: { id_nv: string; ho_ten: string; bo_phan: string }[] }>;
       pushEmployees:             (employees: { id_nv: string; ho_ten: string; bo_phan: string }[]) => Promise<{ success: boolean; message?: string }>;
+      softDeleteServerEncounter: (p: { id: string; actor?: string; reason?: string }) => Promise<{ success: boolean; message?: string }>;
+      purgeEncounter:            (id: string) => Promise<{ success: boolean; message?: string }>;
       resetData: (type: string) => Promise<any>;
 
       // Database: Inventory Methods

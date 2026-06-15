@@ -13,6 +13,7 @@ interface InventoryProps {
   stationConfig: StationConfig;
   refreshTrigger?: number;
   currentUser?: User | null;
+  periodCloseNonce?: number; // Đổi giá trị khi bấm noti "Chốt kho" → tự mở modal chốt kỳ
 }
 
 interface MasterItem {
@@ -49,7 +50,7 @@ const formatDateTime = (ts: number) => {
     return `${p2(d.getDate())}/${p2(d.getMonth()+1)}/${d.getFullYear()} ${p2(d.getHours())}:${p2(d.getMinutes())}`;
 };
 
-export const Inventory: React.FC<InventoryProps> = ({ stationConfig, refreshTrigger, currentUser }) => {
+export const Inventory: React.FC<InventoryProps> = ({ stationConfig, refreshTrigger, currentUser, periodCloseNonce }) => {
   // --- STATE QUẢN LÝ DỮ LIỆU ---
   const [medicines, setMedicines] = useState<Medicine[]>([]); 
   const [logs, setLogs] = useState<InventoryLog[]>([]); 
@@ -120,6 +121,11 @@ export const Inventory: React.FC<InventoryProps> = ({ stationConfig, refreshTrig
   useEffect(() => {
     if (stationConfig.type === StationType.HUB || currentUser.leaderView) loadData();
   }, [filterStation]);
+
+  // Nhảy từ Thông báo "Chốt kho" → tự mở modal Chốt kỳ
+  useEffect(() => {
+    if (periodCloseNonce) setShowPeriodClose(true);
+  }, [periodCloseNonce]);
 
   useEffect(() => {
       loadData(); 

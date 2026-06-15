@@ -12,7 +12,9 @@ interface ClinicalProps {
   stationName: string;
   refreshTrigger?: number; // Tín hiệu reload TỪ App
   onDataChange?: () => void; // Hàm báo hiệu thay đổi LÊN App (để reload Inventory)
-  currentUser: User | null; 
+  currentUser: User | null;
+  focusEncounterId?: string; // Ca cần chọn khi nhảy từ Thông báo
+  focusNonce?: number;       // Đổi giá trị để kích hoạt lại việc chọn (cùng 1 ca bấm 2 lần)
 }
 
 // Interface cho thuốc đã gom nhóm (Để hiển thị trong Clinical)
@@ -32,7 +34,7 @@ const ISOLATION_OPTIONS = [
   'Nhập viện điều trị'
 ];
 
-export const Clinical: React.FC<ClinicalProps> = ({ stationId, stationName, refreshTrigger, onDataChange, currentUser }) => {
+export const Clinical: React.FC<ClinicalProps> = ({ stationId, stationName, refreshTrigger, onDataChange, currentUser, focusEncounterId, focusNonce }) => {
   const [encounters, setEncounters] = useState<Encounter[]>([]);
   const [medicines, setMedicines] = useState<Medicine[]>([]); // Dữ liệu thô từ DB
   const [groupedMedicines, setGroupedMedicines] = useState<GroupedMedicineForClinical[]>([]); // Dữ liệu đã gom nhóm
@@ -91,6 +93,13 @@ export const Clinical: React.FC<ClinicalProps> = ({ stationId, stationName, refr
           loadData();
       }
   }, [refreshTrigger]);
+
+  // Nhảy từ Thông báo: chọn đúng ca khám phát sinh noti
+  useEffect(() => {
+      if (!focusEncounterId) return;
+      loadData(); // đảm bảo ca có trong danh sách rồi mới chọn
+      setSelectedEncounterId(focusEncounterId);
+  }, [focusEncounterId, focusNonce]);
 
   // Auto-fill chẩn đoán khi chọn bệnh truyền nhiễm
   useEffect(() => {

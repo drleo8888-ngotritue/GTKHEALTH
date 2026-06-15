@@ -318,6 +318,7 @@ const MainApp = () => {
   const [stationConfig, setStationConfig] = useState<StationConfig | null>(null);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [activeTab, setActiveTab] = useState('dashboard');
+  const [navIntent, setNavIntent] = useState<{ tab: string; focusId?: string; action?: string; nonce: number } | null>(null);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [showChangePassword, setShowChangePassword] = useState(false);
 
@@ -395,9 +396,14 @@ const MainApp = () => {
   // Lãnh đạo: chỉ được ở 3 tab này; chặn mọi điều hướng sang tab khác (kể cả quick-link)
   const leader = !!currentUser.leaderView;
   const allowedLeaderTabs = ['dashboard', 'inventory', 'reports', 'admin'];
-  const safeSetActiveTab = (tab: string) => {
+  const safeSetActiveTab = (tab: string, intent?: { focusId?: string; action?: string }) => {
     if (leader && !allowedLeaderTabs.includes(tab)) return;
     setActiveTab(tab);
+    if (intent && (intent.focusId || intent.action)) {
+      setNavIntent({ tab, focusId: intent.focusId, action: intent.action, nonce: Date.now() });
+    } else {
+      setNavIntent(null); // điều hướng thường → xoá intent cũ, tránh focus dính lại
+    }
   };
   const safeActiveTab = leader && !allowedLeaderTabs.includes(activeTab) ? 'dashboard' : activeTab;
 
@@ -435,6 +441,8 @@ const MainApp = () => {
               refreshTrigger={refreshTrigger}
               onDataChange={triggerRefresh}
               currentUser={currentUser}
+              focusEncounterId={navIntent?.tab === 'clinical' ? navIntent.focusId : undefined}
+              focusNonce={navIntent?.tab === 'clinical' ? navIntent.nonce : undefined}
           />
       )}
 
@@ -443,6 +451,7 @@ const MainApp = () => {
               stationConfig={stationConfig}
               refreshTrigger={refreshTrigger}
               currentUser={currentUser}
+              periodCloseNonce={navIntent?.tab === 'inventory' && navIntent.action === 'periodClose' ? navIntent.nonce : undefined}
           />
       )}
 

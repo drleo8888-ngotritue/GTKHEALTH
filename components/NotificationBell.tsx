@@ -16,10 +16,14 @@ interface Notification {
   title: string;
   subtitle: string;
   detail: string;
+  navTab: string;            // tab cần nhảy tới khi bấm
+  focusId?: string;          // id ca khám cần chọn (clinical)
+  navAction?: string;        // hành động phụ tại tab đích (vd 'periodClose')
 }
 
 interface Props {
   stationConfig: StationConfig;
+  onNavigate?: (tab: string, intent?: { focusId?: string; action?: string }) => void;
 }
 
 // Màu sắc theo loại thông báo
@@ -38,7 +42,7 @@ const TypeIcon: React.FC<{ type: NotificationType }> = ({ type }) => {
   return <Clock size={14} />;
 };
 
-export const NotificationBell: React.FC<Props> = ({ stationConfig }) => {
+export const NotificationBell: React.FC<Props> = ({ stationConfig, onNavigate }) => {
   const stationName = stationConfig.name;
   const isHub = stationConfig.type === 'HUB';
 
@@ -71,6 +75,8 @@ export const NotificationBell: React.FC<Props> = ({ stationConfig }) => {
                   title: e.patientName,
                   subtitle: e.department,
                   detail: `Chờ khám ${mins} phút / 等待${mins}分钟`,
+                  navTab: 'clinical',
+                  focusId: e.id,
                 });
               }
             }
@@ -90,6 +96,8 @@ export const NotificationBell: React.FC<Props> = ({ stationConfig }) => {
                     e.status === EncounterStatus.MONITOR
                       ? `Theo dõi ${mins} phút / 监测中`
                       : `Nghỉ quá giờ: ${mins} phút / 休息超时`,
+                  navTab: 'clinical',
+                  focusId: e.id,
                 });
               }
             }
@@ -141,6 +149,8 @@ export const NotificationBell: React.FC<Props> = ({ stationConfig }) => {
                 detail: (isOverdue || daysLeft === 0)
                   ? '🔴 Khẩn! — Vào Kho dược → Chốt kỳ'
                   : '🟡 Nhắc nhở — Vào Kho dược → Chốt kỳ',
+                navTab: 'inventory',
+                navAction: 'periodClose',
               });
               break; // Chỉ hiện 1 thông báo cho kỳ chưa chốt gần nhất
             }
@@ -169,6 +179,7 @@ export const NotificationBell: React.FC<Props> = ({ stationConfig }) => {
                 ? `Đã gửi: ${done.join(', ')}`
                 : 'Chưa có trạm nào gửi',
               detail: `Chưa gửi: ${missing.join(', ')} — nhắc nhở các trạm`,
+              navTab: 'reports',
             });
           }
         }
@@ -263,17 +274,22 @@ export const NotificationBell: React.FC<Props> = ({ stationConfig }) => {
                 const s = typeStyle[n.type];
                 return (
                   <div key={n.id} className={`px-4 py-3 flex items-start gap-3 ${s.bg}`}>
-                    {/* Icon */}
-                    <div className={`mt-0.5 w-7 h-7 rounded-full flex items-center justify-center shrink-0 ${s.iconBg} ${s.iconColor}`}>
-                      <TypeIcon type={n.type} />
-                    </div>
-
-                    {/* Nội dung */}
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-semibold text-gray-800 truncate">{n.title}</p>
-                      <p className="text-xs text-gray-500 truncate">{n.subtitle}</p>
-                      <p className={`text-xs font-medium mt-0.5 ${s.text}`}>{n.detail}</p>
-                    </div>
+                    {/* Icon + Nội dung: bấm để nhảy tới đúng chỗ phát sinh */}
+                    <button
+                      type="button"
+                      onClick={() => { onNavigate?.(n.navTab, { focusId: n.focusId, action: n.navAction }); setIsOpen(false); }}
+                      className="flex items-start gap-3 flex-1 min-w-0 text-left cursor-pointer group"
+                      title="Bấm để mở / 点击打开"
+                    >
+                      <div className={`mt-0.5 w-7 h-7 rounded-full flex items-center justify-center shrink-0 ${s.iconBg} ${s.iconColor}`}>
+                        <TypeIcon type={n.type} />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-semibold text-gray-800 truncate group-hover:underline">{n.title}</p>
+                        <p className="text-xs text-gray-500 truncate">{n.subtitle}</p>
+                        <p className={`text-xs font-medium mt-0.5 ${s.text}`}>{n.detail}</p>
+                      </div>
+                    </button>
 
                     {/* Dismiss */}
                     <button

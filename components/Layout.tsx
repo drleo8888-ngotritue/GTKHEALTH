@@ -19,7 +19,7 @@ import { NotificationBell } from './NotificationBell';
 interface LayoutProps {
   children: React.ReactNode;
   activeTab: string;
-  onTabChange: (tab: string) => void;
+  onTabChange: (tab: string, intent?: { focusId?: string; action?: string }) => void;
   currentUser: User;
   stationConfig: StationConfig;
   onLogout: () => void;
@@ -161,7 +161,7 @@ export const Layout: React.FC<LayoutProps> = ({
             </h2>
           </div>
           <div className="flex items-center space-x-3">
-            <NotificationBell stationConfig={stationConfig} />
+            <NotificationBell stationConfig={stationConfig} onNavigate={onTabChange} />
 
             <div className="h-6 w-px bg-gray-300 mx-2"></div>
 

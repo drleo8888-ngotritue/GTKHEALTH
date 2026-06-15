@@ -799,7 +799,7 @@ module.exports = {
     // Đảm bảo cột tồn tại trước khi query (phòng DB cũ chưa migrate)
     try { await runQuery(`ALTER TABLE encounters ADD COLUMN is_synced_server INTEGER DEFAULT 0`); } catch (_) {}
     const rows = await getQuery(
-      `SELECT e.*, GROUP_CONCAT(ce.id||'|'||ce.action_type||'|'||ce.actor_name||'|'||ce.details||'|'||ce.timestamp, ';;') as events_raw
+      `SELECT e.*, json_group_array(json_object('id', ce.id, 'action_type', ce.action_type, 'actor_name', ce.actor_name, 'details', ce.details, 'timestamp', ce.timestamp)) as events_raw
        FROM encounters e
        LEFT JOIN clinical_events ce ON ce.encounter_id = e.id
        WHERE (e.is_synced_server = 0 OR e.is_synced_server IS NULL)
@@ -810,12 +810,9 @@ module.exports = {
     );
     console.log(`🔍 [SYNC] getUnsyncedEncounters: tìm thấy ${rows.length} ca chưa sync`);
     return rows.map(r => {
-      const clinical_events = r.events_raw
-        ? r.events_raw.split(';;').map(s => {
-            const [id, action_type, actor_name, details, timestamp] = s.split('|');
-            return { id, action_type, actor_name, details, timestamp: Number(timestamp) };
-          })
-        : [];
+      const clinical_events = JSON.parse(r.events_raw || '[]')
+        .filter(ev => ev && ev.id != null)
+        .map(ev => ({ id: ev.id, action_type: ev.action_type, actor_name: ev.actor_name, details: ev.details, timestamp: Number(ev.timestamp) }));
       const { events_raw, ...enc } = r;
       return {
         ...enc,
@@ -1031,7 +1028,7 @@ module.exports = {
   getAllCompletedForSync: async () => {
     try { await runQuery(`ALTER TABLE encounters ADD COLUMN is_synced_server INTEGER DEFAULT 0`); } catch (_) {}
     const rows = await getQuery(
-      `SELECT e.*, GROUP_CONCAT(ce.id||'|'||ce.action_type||'|'||ce.actor_name||'|'||ce.details||'|'||ce.timestamp, ';;') as events_raw
+      `SELECT e.*, json_group_array(json_object('id', ce.id, 'action_type', ce.action_type, 'actor_name', ce.actor_name, 'details', ce.details, 'timestamp', ce.timestamp)) as events_raw
        FROM encounters e
        LEFT JOIN clinical_events ce ON ce.encounter_id = e.id
        WHERE e.status NOT IN ('WAITING', 'IN_PROGRESS')
@@ -1040,12 +1037,9 @@ module.exports = {
        ORDER BY e.start_time DESC`
     );
     return rows.map(r => {
-      const clinical_events = r.events_raw
-        ? r.events_raw.split(';;').map(s => {
-            const [id, action_type, actor_name, details, timestamp] = s.split('|');
-            return { id, action_type, actor_name, details, timestamp: Number(timestamp) };
-          })
-        : [];
+      const clinical_events = JSON.parse(r.events_raw || '[]')
+        .filter(ev => ev && ev.id != null)
+        .map(ev => ({ id: ev.id, action_type: ev.action_type, actor_name: ev.actor_name, details: ev.details, timestamp: Number(ev.timestamp) }));
       const { events_raw, ...enc } = r;
       return {
         ...enc,

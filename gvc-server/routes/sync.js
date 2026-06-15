@@ -38,7 +38,7 @@ router.post('/encounters', async (req, res) => {
       if (Array.isArray(enc.clinical_events)) {
         for (const ev of enc.clinical_events) {
           await db.run(
-            `INSERT OR IGNORE INTO clinical_events (id, encounter_id, action_type, actor_name, details, timestamp)
+            `INSERT OR REPLACE INTO clinical_events (id, encounter_id, action_type, actor_name, details, timestamp)
              VALUES (?,?,?,?,?,?)`,
             [ev.id, enc.id, ev.action_type, ev.actor_name, ev.details, ev.timestamp]
           );

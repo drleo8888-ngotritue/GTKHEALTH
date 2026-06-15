@@ -197,36 +197,46 @@ async function doServerSync() {
       const pendingTransfers = await syncServer.pullPendingTransfers(syncServer.getStationName());
       if (Array.isArray(pendingTransfers) && pendingTransfers.length > 0) {
         let applied = 0;
+        const appliedSummaries = [];
         for (const transfer of pendingTransfers) {
           try {
-            const logItems = [];
-            for (const med of transfer.medicines) {
-              await dbService.importMedicine(
-                { name: med.name, stock: med.qty, batchNumber: med.batchNumber || '', unit: med.unit || '', type: 'MEDICINE', group: med.group || '' },
-                transfer.target_station
-              );
-              logItems.push({ name: med.name, qty: med.qty, batch: med.batchNumber || '' });
+            // Chốt CỜ trước (atomic): nếu phiếu này đã từng áp dụng (confirm lỗi/poll lặp)
+            // → KHÔNG cộng kho lần nữa, chỉ thử confirm lại. Chống nhân đôi tồn.
+            const fresh = await dbService.markTransferReceived(transfer.id);
+            if (fresh) {
+              const logItems = [];
+              for (const med of transfer.medicines) {
+                await dbService.importMedicine(
+                  { name: med.name, stock: med.qty, batchNumber: med.batchNumber || '', unit: med.unit || '', type: 'MEDICINE', group: med.group || '' },
+                  transfer.target_station
+                );
+                logItems.push({ name: med.name, qty: med.qty, batch: med.batchNumber || '' });
+              }
+              await dbService.createInventoryLog({
+                id: require('crypto').randomUUID(),
+                type: 'TRANSFER_IN',
+                source: transfer.source_station,
+                target: transfer.target_station,
+                timestamp: Date.now(),
+                note: `Nhận điều chuyển từ ${transfer.source_station} (tự động)`,
+                items: logItems,
+                actorName: 'SERVER_SYNC',
+                actorRole: 'SYSTEM',
+              });
+              applied++;
+              appliedSummaries.push({ source: transfer.source_station, count: logItems.length });
             }
-            await dbService.createInventoryLog({
-              id: require('crypto').randomUUID(),
-              type: 'TRANSFER_IN',
-              source: transfer.source_station,
-              target: transfer.target_station,
-              timestamp: Date.now(),
-              note: `Nhận điều chuyển từ ${transfer.source_station} (tự động)`,
-              items: logItems,
-              actorName: 'SERVER_SYNC',
-              actorRole: 'SYSTEM',
-            });
             await syncServer.confirmTransfer(transfer.id);
-            applied++;
           } catch (e) {
             console.warn(`⚠️ Lỗi áp dụng phiếu điều chuyển ${transfer.id}:`, e.message);
           }
         }
         if (applied > 0) {
           BrowserWindow.getAllWindows().forEach(win => {
-            if (!win.isDestroyed()) win.webContents.send('data:update');
+            if (!win.isDestroyed()) {
+              win.webContents.send('data:update');
+              win.webContents.send('transfer:received', appliedSummaries); // để renderer hiện noti ngay
+            }
           });
           console.log(`✅ Đã nhận ${applied} phiếu điều chuyển thuốc từ server.`);
         }
@@ -1232,6 +1242,16 @@ ipcMain.handle('server-sync:push-employees', async (_e, employees) => {
     return { success: !!res.success, message: res.message };
   } catch (err) {
     return { success: false, message: err?.message || 'Lỗi đẩy nhân viên lên server' };
+  }
+});
+
+// Hub lấy danh sách phiếu điều chuyển đã tạo (để báo trạm nào đã nhận)
+ipcMain.handle('server-sync:get-transfers', async (_e, sourceStation) => {
+  try {
+    const data = await syncServer.getHubTransfers(sourceStation);
+    return { success: true, data: data || [] };
+  } catch (err) {
+    return { success: false, data: [], message: err?.message };
   }
 });
 

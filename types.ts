@@ -217,6 +217,7 @@ declare global {
       pullEmployees:             () => Promise<{ success: boolean; data: { id_nv: string; ho_ten: string; bo_phan: string }[] }>;
       pushEmployees:             (employees: { id_nv: string; ho_ten: string; bo_phan: string }[]) => Promise<{ success: boolean; message?: string }>;
       softDeleteServerEncounter: (p: { id: string; actor?: string; reason?: string }) => Promise<{ success: boolean; message?: string }>;
+      getServerTransfers:        (sourceStation?: string) => Promise<{ success: boolean; data: any[]; message?: string }>;
       purgeEncounter:            (id: string) => Promise<{ success: boolean; message?: string }>;
       resetData: (type: string) => Promise<any>;
 

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Bell, Clock, User2, X, PackageCheck, ClipboardList } from 'lucide-react';
+import { Bell, Clock, User2, X, PackageCheck, ClipboardList, Truck } from 'lucide-react';
 import { EncounterStatus, StationConfig } from '../types';
 import { storage } from '../services/storage';
 
@@ -8,7 +8,9 @@ type NotificationType =
   | 'REST_OVERTIME'
   | 'MONITOR_OVERTIME'
   | 'PERIOD_CLOSE_DUE'
-  | 'SPOKE_REPORT_MISSING';
+  | 'SPOKE_REPORT_MISSING'
+  | 'TRANSFER_RECEIVED'    // Spoke: đã nhận thuốc điều chuyển từ Hub
+  | 'TRANSFER_CONFIRMED';  // Hub: trạm nhận đã xác nhận nhận thuốc
 
 interface Notification {
   id: string;
@@ -33,12 +35,15 @@ const typeStyle: Record<NotificationType, { bg: string; iconBg: string; iconColo
   MONITOR_OVERTIME:     { bg: 'bg-amber-50',  iconBg: 'bg-amber-100',  iconColor: 'text-amber-600',  text: 'text-amber-600'  },
   PERIOD_CLOSE_DUE:     { bg: 'bg-indigo-50', iconBg: 'bg-indigo-100', iconColor: 'text-indigo-600', text: 'text-indigo-600' },
   SPOKE_REPORT_MISSING: { bg: 'bg-rose-50',   iconBg: 'bg-rose-100',   iconColor: 'text-rose-600',   text: 'text-rose-600'   },
+  TRANSFER_RECEIVED:    { bg: 'bg-emerald-50',iconBg: 'bg-emerald-100',iconColor: 'text-emerald-600',text: 'text-emerald-600'},
+  TRANSFER_CONFIRMED:   { bg: 'bg-teal-50',   iconBg: 'bg-teal-100',   iconColor: 'text-teal-600',   text: 'text-teal-600'   },
 };
 
 const TypeIcon: React.FC<{ type: NotificationType }> = ({ type }) => {
   if (type === 'WAITING_LONG') return <User2 size={14} />;
   if (type === 'PERIOD_CLOSE_DUE') return <PackageCheck size={14} />;
   if (type === 'SPOKE_REPORT_MISSING') return <ClipboardList size={14} />;
+  if (type === 'TRANSFER_RECEIVED' || type === 'TRANSFER_CONFIRMED') return <Truck size={14} />;
   return <Clock size={14} />;
 };
 
@@ -182,6 +187,46 @@ export const NotificationBell: React.FC<Props> = ({ stationConfig, onNavigate })
               navTab: 'reports',
             });
           }
+        }
+
+        // ── 4. Điều chuyển thuốc (trong 24h gần nhất) ──────────────────────
+        const DAY = 24 * 60 * 60 * 1000;
+        const now2 = Date.now();
+
+        // Spoke: đã NHẬN thuốc điều chuyển (đọc log TRANSFER_IN local)
+        if (!isHub && window.electron?.getInventoryLogs) {
+          const logs: any[] = await window.electron.getInventoryLogs();
+          (logs || [])
+            .filter(l => l.type === 'TRANSFER_IN' && (now2 - (l.timestamp || 0)) < DAY)
+            .forEach(l => {
+              const items = Array.isArray(l.items) ? l.items : [];
+              result.push({
+                id: `TRIN_${l.id}`,
+                type: 'TRANSFER_RECEIVED',
+                title: `Đã nhận điều chuyển từ ${l.source || '?'}`,
+                subtitle: `${items.length} mặt hàng / 已收到调拨`,
+                detail: items.slice(0, 3).map((it: any) => `${it.name} (${it.qty})`).join(', ') + (items.length > 3 ? '…' : ''),
+                navTab: 'inventory',
+              });
+            });
+        }
+
+        // Hub: trạm nhận ĐÃ XÁC NHẬN nhận thuốc mình chuyển đi
+        if (isHub && (window.electron as any)?.getServerTransfers) {
+          const res = await (window.electron as any).getServerTransfers(stationName);
+          ((res?.data) || [])
+            .filter((t: any) => t.status === 'CONFIRMED' && (now2 - (t.confirmed_at || 0)) < DAY)
+            .forEach((t: any) => {
+              const meds = Array.isArray(t.medicines) ? t.medicines : [];
+              result.push({
+                id: `TROUT_${t.id}`,
+                type: 'TRANSFER_CONFIRMED',
+                title: `${t.target_station} đã nhận thuốc`,
+                subtitle: `${meds.length} mặt hàng / 已确认收货`,
+                detail: `Xác nhận lúc ${new Date(t.confirmed_at).toLocaleString('vi-VN')}`,
+                navTab: 'inventory',
+              });
+            });
         }
 
         setNotifications(result.filter(n => !dismissedRef.current.has(n.id)));

@@ -183,6 +183,9 @@ module.exports = {
                 // 🔥 TẠO BẢNG LỊCH SỬ NHẬP FILE (QUAN TRỌNG ĐỂ CHỐNG SPAM IMPORT) 🔥
                 await runQuery(`CREATE TABLE IF NOT EXISTS import_history (fileId TEXT PRIMARY KEY, fileName TEXT, importType TEXT, sourceStation TEXT, timestamp INTEGER)`);
 
+                // Phiếu điều chuyển ĐÃ áp dụng — chống cộng kho 2 lần khi confirm lỗi/poll lặp
+                await runQuery(`CREATE TABLE IF NOT EXISTS received_transfers (id TEXT PRIMARY KEY, received_at INTEGER)`);
+
                 // 🏥 BẢNG KẾT QUẢ KHÁM SỨC KHỎE HÀNG NĂM
                 await runQuery(`CREATE TABLE IF NOT EXISTS health_checkups (
                   id TEXT PRIMARY KEY,
@@ -731,6 +734,13 @@ module.exports = {
       await runQuery(`DELETE FROM encounters WHERE id = ?`, [id]);
       await runQuery(`DELETE FROM clinical_events WHERE encounter_id = ?`, [id]);
       return true;
+  },
+
+  // Đánh dấu 1 phiếu điều chuyển đã được áp dụng. Trả về true NẾU là lần đầu (mới chèn);
+  // false nếu đã áp dụng trước đó → caller bỏ qua việc cộng kho để KHÔNG nhân đôi tồn.
+  markTransferReceived: async (id) => {
+      const r = await runQuery(`INSERT OR IGNORE INTO received_transfers (id, received_at) VALUES (?, ?)`, [id, Date.now()]);
+      return r.changes > 0;
   },
 
   importSyncedData: async (data) => {

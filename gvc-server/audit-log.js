@@ -8,9 +8,9 @@ const LOG_DIR = process.env.AUDIT_DIR || path.join(__dirname, 'logs');
 const HEADER  = 'Thời gian,Trạm,IP,Lệnh,Chi tiết,Kết quả,ms\n';
 
 // Chỉ ghi lệnh CÓ THAY ĐỔI database. Bỏ qua mọi lệnh đọc.
-function shouldSkip(req) {
-  if (req.method === 'GET') return true;                 // tất cả lệnh đọc (xem báo cáo, kéo danh sách, KPI...)
-  if (req.path === '/api/sync/check-exists') return true; // POST nhưng chỉ kiểm tra trùng, không ghi DB
+function shouldSkip(req, p) {
+  if (req.method === 'GET') return true;             // tất cả lệnh đọc (xem báo cáo, kéo danh sách, KPI...)
+  if (p === '/api/sync/check-exists') return true;   // POST nhưng chỉ kiểm tra trùng, không ghi DB
   return false;
 }
 
@@ -36,8 +36,9 @@ function clientIp(req) {
 }
 
 // Suy ra "lệnh tiếng người" + chi tiết từ method/path/body
-function describe(req) {
-  const p = req.path;
+// p = đường dẫn ĐẦY ĐỦ chụp lúc vào middleware (req.path trong res.finish đã bị
+// Express cắt mount-path → mất /api/sync, không khớp nhãn).
+function describe(req, p) {
   const b = req.body || {};
   const n = (x) => Array.isArray(x) ? x.length : 0;
 
@@ -77,13 +78,15 @@ function resultText(status) {
 
 // Middleware: ghi log khi response kết thúc (để có cả mã trạng thái + thời lượng)
 function auditMiddleware(req, res, next) {
-  if (shouldSkip(req)) return next();
+  // Chụp đường dẫn đầy đủ NGAY LÚC NÀY (originalUrl không bị routing cắt mount-path)
+  const reqPath = (req.originalUrl || req.url || '').split('?')[0];
+  if (shouldSkip(req, reqPath)) return next();
 
   const start = Date.now();
   res.on('finish', () => {
     try {
       const d = new Date();
-      const { label, detail } = describe(req);
+      const { label, detail } = describe(req, reqPath);
       let hdrStation = req.headers['x-station-name'] || '';
       try { hdrStation = decodeURIComponent(hdrStation); } catch (_) {}
       const station = hdrStation || req.body?.station_name || req.body?.station || '(không rõ)';

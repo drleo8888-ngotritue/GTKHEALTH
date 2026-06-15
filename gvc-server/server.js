@@ -3,6 +3,7 @@ const express = require('express');
 const cors    = require('cors');
 const db      = require('./db');
 const auth    = require('./middleware/auth');
+const { auditMiddleware } = require('./audit-log');
 
 const app  = express();
 const PORT = process.env.PORT || 3500;
@@ -11,12 +12,15 @@ const PORT = process.env.PORT || 3500;
 app.use(cors({ origin: '*', methods: ['GET', 'POST', 'PUT'], allowedHeaders: ['Content-Type', 'Authorization'] }));
 app.use(express.json({ limit: '10mb' }));
 
-// Request logger
+// Request logger (console — xem nhanh khi chạy)
 app.use((req, _res, next) => {
   const t = new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
   console.log(`[${t}] ${req.method} ${req.path}`);
   next();
 });
+
+// Nhật ký audit ra file CSV theo ngày (mở bằng Excel) — ghi cả lệnh chưa qua auth
+app.use(auditMiddleware);
 
 // Health check — không cần auth
 app.use('/api/ping', require('./routes/ping'));

@@ -38,6 +38,9 @@ function request(method, urlPath, body = null, readOnly = false) {
       headers: {
         'Content-Type':  'application/json',
         'Authorization': `Bearer ${_syncConfig.apiKey}`,
+        // Để server ghi nhật ký biết lệnh phát sinh từ trạm nào (kể cả lệnh đọc)
+        'X-Station-Name': encodeURIComponent(_stationConfig.name || ''),
+        'X-Station-Id':   _stationConfig.id || '',
       },
       timeout: 10000,
     };

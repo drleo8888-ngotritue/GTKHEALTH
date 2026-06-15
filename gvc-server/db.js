@@ -171,6 +171,8 @@ async function init() {
     note TEXT,
     confirmed_at INTEGER
   )`);
+  // Migrate: mốc "trạm nhận đã tiếp nhận phiếu (đang vận chuyển)" — giữa PENDING và CONFIRMED
+  try { await run(`ALTER TABLE pending_transfers ADD COLUMN acknowledged_at INTEGER`); } catch (_) {}
 
 
   // Index để query nhanh

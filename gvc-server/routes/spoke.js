@@ -2,7 +2,7 @@
 const router = require('express').Router();
 const db = require('../db');
 
-// GET /api/spoke/transfers/pending?station_name= — Spoke hỏi có phiếu nào chờ không
+// GET /api/spoke/transfers/pending?station_name= — phiếu CHƯA nhận xong (PENDING + ACKNOWLEDGED)
 router.get('/transfers/pending', async (req, res) => {
   try {
     const { station_name } = req.query;
@@ -11,7 +11,7 @@ router.get('/transfers/pending', async (req, res) => {
     }
     const rows = await db.all(
       `SELECT * FROM pending_transfers
-       WHERE target_station = ? AND status = 'PENDING'
+       WHERE target_station = ? AND status IN ('PENDING','ACKNOWLEDGED')
        ORDER BY created_at ASC`,
       [station_name]
     );
@@ -24,15 +24,30 @@ router.get('/transfers/pending', async (req, res) => {
   }
 });
 
-// POST /api/spoke/transfers/:id/confirm — Spoke xác nhận đã nhận
+// POST /api/spoke/transfers/:id/ack — app trạm nhận đã TIẾP NHẬN phiếu (đang vận chuyển)
+router.post('/transfers/:id/ack', async (req, res) => {
+  try {
+    await db.run(
+      `UPDATE pending_transfers SET status = 'ACKNOWLEDGED', acknowledged_at = ?
+       WHERE id = ? AND status = 'PENDING'`,
+      [Date.now(), req.params.id]
+    );
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// POST /api/spoke/transfers/:id/confirm — nhân viên trạm nhận đã NHẬN ĐỦ THUỐC (nhập kho, hoàn tất)
 router.post('/transfers/:id/confirm', async (req, res) => {
   try {
     const { id } = req.params;
     await db.run(
-      `UPDATE pending_transfers SET status = 'CONFIRMED', confirmed_at = ? WHERE id = ?`,
+      `UPDATE pending_transfers SET status = 'CONFIRMED', confirmed_at = ?
+       WHERE id = ? AND status IN ('PENDING','ACKNOWLEDGED')`,
       [Date.now(), id]
     );
-    res.json({ success: true, message: `Phiếu ${id} đã được xác nhận` });
+    res.json({ success: true, message: `Phiếu ${id} đã xác nhận nhận đủ` });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }

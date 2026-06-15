@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Medicine, StationConfig, StationType, MedicineType, InventoryLog, User } from '../types';
 import { storage } from '../services/storage';
 import { dataService } from '../services/data-service';
+import { TransferTracker } from './TransferTracker';
 import { AlertTriangle, ChevronDown, ChevronUp, Download, Filter, Package, Plus, Upload, X, Pill, Stethoscope, Truck, Check, Calendar, TrendingUp, Activity, Trash2, RefreshCw, AlertOctagon, FileSpreadsheet, History, FileText, ArrowRight, Clock, Lock, Pencil } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { STATION_PRESETS } from '../constants';
@@ -493,7 +494,7 @@ export const Inventory: React.FC<InventoryProps> = ({ stationConfig, refreshTrig
                   items: transferCart.map(i => ({ name: i.med.name, qty: i.qty, batch: i.med.batchNumber })),
                   actorName: currentUser?.name, actorRole: currentUser?.role,
               });
-              alert(`✅ Đã tạo phiếu điều chuyển đến ${targetStation}.\nTrạm ${targetStation} sẽ nhận tự động qua đồng bộ.`);
+              alert(`✅ Đã tạo phiếu điều chuyển đến ${targetStation} & đã xuất kho.\nTrạm ${targetStation} sẽ XÁC NHẬN khi nhận đủ thuốc — theo dõi tiến trình ở mục "Theo dõi điều chuyển".`);
               setShowTransferModal(false); setTransferCart([]); setTargetStation(''); await loadData();
           }
       } catch(e: any) { alert(`❌ ${e.message}`); }
@@ -701,6 +702,14 @@ export const Inventory: React.FC<InventoryProps> = ({ stationConfig, refreshTrig
                onClose={() => setShowImportFail(false)}
            />
        )}
+
+       {/* Theo dõi điều chuyển (Hub) / Phiếu đến chờ nhận (Spoke) */}
+       <TransferTracker
+          stationConfig={stationConfig}
+          currentUser={currentUser ?? null}
+          refreshTrigger={refreshTrigger}
+          onReceived={loadData}
+       />
 
        {/* --- TOP CONTROL BAR --- */}
        {activeTab !== 'history' && (

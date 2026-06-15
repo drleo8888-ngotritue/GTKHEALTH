@@ -201,7 +201,12 @@ async function pullPendingTransfers(stationName) {
   return res?.success ? (res.data || []) : null;
 }
 
-// Spoke xác nhận đã nhận phiếu
+// Spoke (app) tiếp nhận phiếu — đánh dấu đang vận chuyển
+async function ackTransfer(transferId) {
+  return request('POST', `/api/spoke/transfers/${transferId}/ack`, {});
+}
+
+// Spoke (nhân viên) xác nhận đã NHẬN ĐỦ THUỐC vật lý — hoàn tất
 async function confirmTransfer(transferId) {
   return request('POST', `/api/spoke/transfers/${transferId}/confirm`, {});
 }
@@ -246,6 +251,7 @@ module.exports = {
   createTransfer,
   getHubTransfers,
   pullPendingTransfers,
+  ackTransfer,
   confirmTransfer,
   pushProtocols,
   pullProtocols,

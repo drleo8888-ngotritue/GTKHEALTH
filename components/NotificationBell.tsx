@@ -193,22 +193,20 @@ export const NotificationBell: React.FC<Props> = ({ stationConfig, onNavigate })
         const DAY = 24 * 60 * 60 * 1000;
         const now2 = Date.now();
 
-        // Spoke: đã NHẬN thuốc điều chuyển (đọc log TRANSFER_IN local)
-        if (!isHub && window.electron?.getInventoryLogs) {
-          const logs: any[] = await window.electron.getInventoryLogs();
-          (logs || [])
-            .filter(l => l.type === 'TRANSFER_IN' && (now2 - (l.timestamp || 0)) < DAY)
-            .forEach(l => {
-              const items = Array.isArray(l.items) ? l.items : [];
-              result.push({
-                id: `TRIN_${l.id}`,
-                type: 'TRANSFER_RECEIVED',
-                title: `Đã nhận điều chuyển từ ${l.source || '?'}`,
-                subtitle: `${items.length} mặt hàng / 已收到调拨`,
-                detail: items.slice(0, 3).map((it: any) => `${it.name} (${it.qty})`).join(', ') + (items.length > 3 ? '…' : ''),
-                navTab: 'inventory',
-              });
+        // Spoke: phiếu điều chuyển ĐẾN đang chờ nhân viên nhận hàng (PENDING/ACKNOWLEDGED)
+        if (!isHub && (window.electron as any)?.listIncomingTransfers) {
+          const res = await (window.electron as any).listIncomingTransfers();
+          ((res?.data) || []).forEach((t: any) => {
+            const meds = Array.isArray(t.medicines) ? t.medicines : [];
+            result.push({
+              id: `TRIN_${t.id}`,
+              type: 'TRANSFER_RECEIVED',
+              title: `Phiếu điều chuyển đến từ ${t.source_station || '?'}`,
+              subtitle: `${meds.length} mặt hàng · chờ nhận / 待收货`,
+              detail: 'Bấm để mở Kho dược và xác nhận khi đã nhận đủ thuốc',
+              navTab: 'inventory',
             });
+          });
         }
 
         // Hub: trạm nhận ĐÃ XÁC NHẬN nhận thuốc mình chuyển đi

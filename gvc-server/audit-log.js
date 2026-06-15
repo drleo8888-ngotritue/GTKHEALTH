@@ -7,8 +7,12 @@ const path = require('path');
 const LOG_DIR = process.env.AUDIT_DIR || path.join(__dirname, 'logs');
 const HEADER  = 'Thời gian,Trạm,IP,Lệnh,Chi tiết,Kết quả,ms\n';
 
-// Không ghi mấy lệnh "ồn ào" vô nghĩa (health-check chạy liên tục)
-const SKIP = [{ method: 'GET', re: /^\/api\/ping/ }];
+// Chỉ ghi lệnh CÓ THAY ĐỔI database. Bỏ qua mọi lệnh đọc.
+function shouldSkip(req) {
+  if (req.method === 'GET') return true;                 // tất cả lệnh đọc (xem báo cáo, kéo danh sách, KPI...)
+  if (req.path === '/api/sync/check-exists') return true; // POST nhưng chỉ kiểm tra trùng, không ghi DB
+  return false;
+}
 
 function two(n) { return String(n).padStart(2, '0'); }
 function fmtTime(d) {
@@ -35,7 +39,6 @@ function clientIp(req) {
 function describe(req) {
   const p = req.path;
   const b = req.body || {};
-  const q = req.query || {};
   const n = (x) => Array.isArray(x) ? x.length : 0;
 
   // POST — các lệnh ghi dữ liệu
@@ -44,7 +47,6 @@ function describe(req) {
     if (p === '/api/sync/inventory-logs')    return { label: 'Đẩy giao dịch kho',             detail: `${n(b.logs)} log` };
     if (p === '/api/sync/medicines/stock')   return { label: 'Đẩy tồn kho',                   detail: `${n(b.medicines)} mục` };
     if (p === '/api/sync/medicine-report')   return { label: 'Đẩy báo cáo thuốc tháng',       detail: `Kỳ ${b.period_month}/${b.period_year} · ${n(b.data)} mục` };
-    if (p === '/api/sync/check-exists')      return { label: 'Kiểm tra ca đã tồn tại',        detail: `${n(b.ids)} id` };
     if (p === '/api/admin/employees')        return { label: 'Đẩy danh sách nhân viên',       detail: `${n(b.employees)} NV` };
     if (/^\/api\/hub\/encounters\/.+\/delete$/.test(p)) {
       const id = p.split('/')[4];
@@ -62,21 +64,7 @@ function describe(req) {
     return { label: 'Sửa thông tin nhân viên', detail: `NV ${p.split('/')[4]}` };
   }
 
-  // GET — các lệnh đọc
-  if (req.method === 'GET') {
-    const range = (q.from || q.to) ? ` · kỳ ${q.from || '?'}→${q.to || '?'}` : '';
-    if (p === '/api/sync/employees')         return { label: 'Kéo danh sách nhân viên về',    detail: '' };
-    if (p === '/api/hub/encounters')         return { label: 'Xem danh sách ca khám',         detail: `${q.station_name ? 'trạm ' + q.station_name : 'tất cả trạm'}${range}` };
-    if (/^\/api\/hub\/encounters\/.+\/events$/.test(p)) return { label: 'Xem diễn biến 1 ca', detail: `ca ${p.split('/')[4]}` };
-    if (p === '/api/hub/summary')            return { label: 'Xem tổng hợp KPI',              detail: `${q.station_name ? 'trạm ' + q.station_name : 'tất cả'}${range}` };
-    if (p === '/api/hub/inventory/stock')    return { label: 'Xem tồn kho tổng hợp',          detail: q.station_id || 'tất cả' };
-    if (/^\/api\/hub\/medicine-reports/.test(p)) return { label: 'Xem trạng thái báo cáo thuốc', detail: '' };
-    if (p === '/api/hub/transfers')          return { label: 'Xem danh sách phiếu chuyển',    detail: '' };
-    if (p === '/api/spoke/transfers/pending')return { label: 'Hỏi phiếu chuyển đang chờ',     detail: q.station_name || '' };
-    if (p === '/api/spoke/protocols')        return { label: 'Kéo phác đồ về',                detail: '' };
-  }
-
-  // Mặc định: chưa đặt nhãn → ghi thô để vẫn truy được
+  // Lệnh ghi/sửa khác chưa đặt nhãn → vẫn ghi thô để không bỏ sót thay đổi DB
   return { label: `${req.method} ${p}`, detail: '' };
 }
 
@@ -89,7 +77,7 @@ function resultText(status) {
 
 // Middleware: ghi log khi response kết thúc (để có cả mã trạng thái + thời lượng)
 function auditMiddleware(req, res, next) {
-  if (SKIP.some(s => s.method === req.method && s.re.test(req.path))) return next();
+  if (shouldSkip(req)) return next();
 
   const start = Date.now();
   res.on('finish', () => {

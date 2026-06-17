@@ -51,6 +51,24 @@ const formatDateTime = (ts: number) => {
     return `${p2(d.getDate())}/${p2(d.getMonth()+1)}/${d.getFullYear()} ${p2(d.getHours())}:${p2(d.getMinutes())}`;
 };
 
+// Gom loại giao dịch về 1 nhóm để lọc nhật ký
+const logCategory = (type: string): string => {
+    if (!type) return 'OTHER';
+    if (type.includes('IMPORT')) return 'IMPORT';      // nhập kho + setup đầu kỳ
+    if (type === 'EXPORT_USE') return 'EXPORT_USE';    // kê đơn
+    if (type === 'TRANSFER_OUT') return 'TRANSFER_OUT';// xuất chuyển
+    if (type === 'TRANSFER_IN') return 'TRANSFER_IN';  // nhập chuyển
+    return 'OTHER';                                    // hủy/khác
+};
+const LOG_FILTERS: { key: string; label: string }[] = [
+    { key: 'ALL',          label: 'Tất cả / 全部' },
+    { key: 'IMPORT',       label: 'Nhập kho / 入库' },
+    { key: 'EXPORT_USE',   label: 'Kê đơn / 处方' },
+    { key: 'TRANSFER_OUT', label: 'Xuất chuyển / 调出' },
+    { key: 'TRANSFER_IN',  label: 'Nhập chuyển / 调入' },
+    { key: 'OTHER',        label: 'Hủy/Khác / 销毁' },
+];
+
 export const Inventory: React.FC<InventoryProps> = ({ stationConfig, refreshTrigger, currentUser, periodCloseNonce }) => {
   // --- STATE QUẢN LÝ DỮ LIỆU ---
   const [medicines, setMedicines] = useState<Medicine[]>([]); 
@@ -67,6 +85,7 @@ export const Inventory: React.FC<InventoryProps> = ({ stationConfig, refreshTrig
   const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
   const [startDate, setStartDate] = useState<string>(firstDay.toISOString().slice(0,10));
   const [endDate, setEndDate] = useState<string>(today.toISOString().slice(0,10));
+  const [logTypeFilter, setLogTypeFilter] = useState<string>('ALL'); // lọc loại GD trong nhật ký
 
   // --- STATE MỞ RỘNG BẢNG ---
   const [expandedRows, setExpandedRows] = useState<Record<string, boolean>>({});
@@ -379,8 +398,11 @@ export const Inventory: React.FC<InventoryProps> = ({ stationConfig, refreshTrig
               });
           }
       });
-      return grouped;
-  }, [logs, startDate, endDate, stationConfig.name]);
+      // Lọc theo loại giao dịch (nếu chọn)
+      return logTypeFilter === 'ALL'
+          ? grouped
+          : grouped.filter(g => logCategory(g.type) === logTypeFilter);
+  }, [logs, startDate, endDate, stationConfig.name, logTypeFilter]);
 
   const calculateAnalysisData = (): AnalyticsItem[] => {
       return flowData.map(item => {
@@ -876,8 +898,28 @@ export const Inventory: React.FC<InventoryProps> = ({ stationConfig, refreshTrig
                          </div>
                        </div>
                      )}
-                     <div className="p-4 bg-gray-50 border-b border-gray-200 flex justify-between items-center sticky top-0 z-20 shadow-sm">
-                         <div className="text-sm font-bold text-gray-600 flex items-center"><Clock size={18} className="mr-2 text-purple-600"/>Lịch sử giao dịch / 交易记录: <span className="ml-2 text-gray-900 bg-white px-2 py-0.5 rounded border border-gray-200 shadow-sm font-mono">{formatDate(startDate)} ➝ {formatDate(endDate)}</span></div>
+                     <div className="p-4 bg-gray-50 border-b border-gray-200 sticky top-0 z-20 shadow-sm space-y-3">
+                         <div className="flex flex-wrap items-center justify-between gap-3">
+                             <div className="text-sm font-bold text-gray-600 flex items-center"><Clock size={18} className="mr-2 text-purple-600"/>Lịch sử giao dịch / 交易记录</div>
+                             {/* Chọn khoảng ngày ngay trong nhật ký */}
+                             <div className="flex items-center bg-white px-3 py-1.5 rounded-lg border border-gray-200 shadow-sm">
+                                 <Calendar size={16} className="text-gray-500 mr-2"/>
+                                 <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className="bg-transparent text-sm font-bold text-gray-700 outline-none"/>
+                                 <ArrowRight size={14} className="mx-2 text-gray-400"/>
+                                 <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className="bg-transparent text-sm font-bold text-gray-700 outline-none"/>
+                             </div>
+                         </div>
+                         {/* Lọc theo loại giao dịch */}
+                         <div className="flex flex-wrap items-center gap-2">
+                             <Filter size={14} className="text-gray-400 shrink-0"/>
+                             {LOG_FILTERS.map(f => (
+                                 <button key={f.key} onClick={() => setLogTypeFilter(f.key)}
+                                     className={`px-3 py-1 rounded-full text-xs font-bold border transition-colors ${logTypeFilter === f.key ? 'bg-purple-600 text-white border-purple-600 shadow-sm' : 'bg-white text-gray-600 border-gray-200 hover:border-purple-300'}`}>
+                                     {f.label}
+                                 </button>
+                             ))}
+                             <span className="ml-auto text-xs text-gray-500 font-medium">{historyData.length} giao dịch</span>
+                         </div>
                      </div>
                      <table className="w-full text-left border-collapse text-sm">
                          <thead className="bg-gray-100 sticky top-14 z-10 text-gray-700 font-bold shadow-sm">

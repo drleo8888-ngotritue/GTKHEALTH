@@ -42,10 +42,11 @@ router.post('/transfers/:id/ack', async (req, res) => {
 router.post('/transfers/:id/confirm', async (req, res) => {
   try {
     const { id } = req.params;
+    const { received_note } = req.body || {};
     await db.run(
-      `UPDATE pending_transfers SET status = 'CONFIRMED', confirmed_at = ?
+      `UPDATE pending_transfers SET status = 'CONFIRMED', confirmed_at = ?, received_note = ?
        WHERE id = ? AND status IN ('PENDING','ACKNOWLEDGED')`,
-      [Date.now(), id]
+      [Date.now(), received_note || null, id]
     );
     res.json({ success: true, message: `Phiếu ${id} đã xác nhận nhận đủ` });
   } catch (err) {

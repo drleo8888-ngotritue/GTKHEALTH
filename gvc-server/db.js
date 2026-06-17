@@ -173,6 +173,8 @@ async function init() {
   )`);
   // Migrate: mốc "trạm nhận đã tiếp nhận phiếu (đang vận chuyển)" — giữa PENDING và CONFIRMED
   try { await run(`ALTER TABLE pending_transfers ADD COLUMN acknowledged_at INTEGER`); } catch (_) {}
+  // Ghi chú thực nhận (chênh lệch SL chuyển vs thực nhận) — để Hub thấy
+  try { await run(`ALTER TABLE pending_transfers ADD COLUMN received_note TEXT`); } catch (_) {}
 
 
   // Index để query nhanh

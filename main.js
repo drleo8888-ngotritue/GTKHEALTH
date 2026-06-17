@@ -1233,20 +1233,35 @@ ipcMain.handle('server-sync:list-incoming-transfers', async () => {
   }
 });
 
-// Spoke: nhân viên xác nhận ĐÃ NHẬN ĐỦ THUỐC → mới cộng kho + ghi log + báo server hoàn tất
-ipcMain.handle('server-sync:receive-transfer', async (_e, { transfer, actorName, actorRole } = {}) => {
+// Spoke: nhân viên xác nhận nhận thuốc. receivedItems = SỐ THỰC NHẬN (có thể khác SL chuyển).
+// Cộng kho theo số thực nhận; ghi chú chênh lệch để Hub thấy. Chống nhân đôi qua received_transfers.
+ipcMain.handle('server-sync:receive-transfer', async (_e, { transfer, receivedItems, actorName, actorRole } = {}) => {
   try {
     if (!transfer || !transfer.id) return { success: false, message: 'Thiếu thông tin phiếu' };
-    // Chống nhân đôi tồn: chỉ cộng kho nếu phiếu chưa từng được áp dụng tại máy này
+    // Nguồn số liệu áp kho: ưu tiên số thực nhận do nhân viên nhập; nếu không có thì dùng SL chuyển.
+    const planned = Array.isArray(transfer.medicines) ? transfer.medicines : [];
+    const actual = Array.isArray(receivedItems) && receivedItems.length ? receivedItems : planned;
+
+    // Ghi chú chênh lệch (so từng mặt hàng theo tên)
+    const diffs = [];
+    for (const p of planned) {
+      const a = actual.find(x => x.name === p.name);
+      const recvQty = a ? Number(a.qty) || 0 : 0;
+      if (recvQty !== (Number(p.qty) || 0)) diffs.push(`${p.name}: chuyển ${p.qty} → nhận ${recvQty}`);
+    }
+    const receivedNote = diffs.length ? `Chênh lệch — ${diffs.join('; ')}` : 'Nhận đủ theo phiếu';
+
     const fresh = await dbService.markTransferReceived(transfer.id);
     if (fresh) {
       const logItems = [];
-      for (const med of (transfer.medicines || [])) {
+      for (const med of actual) {
+        const qty = Number(med.qty) || 0;
+        if (qty <= 0) continue; // không nhận mặt hàng này → bỏ qua
         await dbService.importMedicine(
-          { name: med.name, stock: med.qty, batchNumber: med.batchNumber || '', unit: med.unit || '', type: 'MEDICINE', group: med.group || '' },
+          { name: med.name, stock: qty, batchNumber: med.batchNumber || '', unit: med.unit || '', type: 'MEDICINE', group: med.group || '' },
           transfer.target_station
         );
-        logItems.push({ name: med.name, qty: med.qty, batch: med.batchNumber || '' });
+        logItems.push({ name: med.name, qty, batch: med.batchNumber || '' });
       }
       await dbService.createInventoryLog({
         id: require('crypto').randomUUID(),
@@ -1254,13 +1269,13 @@ ipcMain.handle('server-sync:receive-transfer', async (_e, { transfer, actorName,
         source: transfer.source_station,
         target: transfer.target_station,
         timestamp: Date.now(),
-        note: `Nhận đủ điều chuyển từ ${transfer.source_station}`,
+        note: `Nhận điều chuyển từ ${transfer.source_station}. ${receivedNote}`,
         items: logItems,
         actorName: actorName || 'Unknown',
         actorRole: actorRole || 'STAFF',
       });
     }
-    await syncServer.confirmTransfer(transfer.id); // báo server: đã nhập kho, hoàn tất
+    await syncServer.confirmTransfer(transfer.id, receivedNote); // báo server hoàn tất + chênh lệch
     BrowserWindow.getAllWindows().forEach(win => {
       if (!win.isDestroyed()) win.webContents.send('data:update');
     });

@@ -206,9 +206,9 @@ async function ackTransfer(transferId) {
   return request('POST', `/api/spoke/transfers/${transferId}/ack`, {});
 }
 
-// Spoke (nhân viên) xác nhận đã NHẬN ĐỦ THUỐC vật lý — hoàn tất
-async function confirmTransfer(transferId) {
-  return request('POST', `/api/spoke/transfers/${transferId}/confirm`, {});
+// Spoke (nhân viên) xác nhận đã NHẬN THUỐC vật lý — hoàn tất (kèm ghi chú chênh lệch nếu có)
+async function confirmTransfer(transferId, receivedNote) {
+  return request('POST', `/api/spoke/transfers/${transferId}/confirm`, { received_note: receivedNote || null });
 }
 
 // Kiểm tra batch IDs đã có trên server chưa (tối đa 10)

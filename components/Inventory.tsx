@@ -86,6 +86,7 @@ export const Inventory: React.FC<InventoryProps> = ({ stationConfig, refreshTrig
   const [startDate, setStartDate] = useState<string>(firstDay.toISOString().slice(0,10));
   const [endDate, setEndDate] = useState<string>(today.toISOString().slice(0,10));
   const [logTypeFilter, setLogTypeFilter] = useState<string>('ALL'); // lọc loại GD trong nhật ký
+  const [incomingTransferCount, setIncomingTransferCount] = useState(0); // Spoke: số phiếu điều chuyển đến chờ nhận
 
   // --- STATE MỞ RỘNG BẢNG ---
   const [expandedRows, setExpandedRows] = useState<Record<string, boolean>>({});
@@ -146,6 +147,17 @@ export const Inventory: React.FC<InventoryProps> = ({ stationConfig, refreshTrig
   useEffect(() => {
     if (periodCloseNonce) setShowPeriodClose(true);
   }, [periodCloseNonce]);
+
+  // Spoke: đếm phiếu điều chuyển đến đang chờ — để cảnh báo khi nhập tay (tránh nhân đôi)
+  useEffect(() => {
+    if (stationConfig.type === StationType.HUB || !(window.electron as any)?.listIncomingTransfers) return;
+    const loadIncoming = async () => {
+      try { const res = await (window.electron as any).listIncomingTransfers(); setIncomingTransferCount((res?.data || []).length); } catch { /* im lặng */ }
+    };
+    loadIncoming();
+    const t = setInterval(loadIncoming, 30000);
+    return () => clearInterval(t);
+  }, [stationConfig.type, refreshTrigger]);
 
   useEffect(() => {
       loadData(); 
@@ -1091,7 +1103,15 @@ export const Inventory: React.FC<InventoryProps> = ({ stationConfig, refreshTrig
                       <span className="flex items-center text-lg"><Plus className="mr-2"/><span>{medicines.some(m => m.name === newItem.name) ? 'Nhập thêm lô mới' : `Khai báo ${typeLabel} mới`}<span className="block text-xs font-normal opacity-80">{medicines.some(m => m.name === newItem.name) ? '新增批次' : '新建药品/耗材'}</span></span></span>
                       <button onClick={() => setShowImportModal(false)} className="hover:bg-white/20 p-1 rounded-full"><X size={20}/></button>
                   </div>
-                  
+
+                  {/* Cảnh báo: có phiếu điều chuyển đến → đừng nhập tay kẻo nhân đôi tồn */}
+                  {stationConfig.type !== StationType.HUB && incomingTransferCount > 0 && (
+                      <div className="p-3 bg-amber-50 border-b-2 border-amber-300 text-amber-800 text-xs flex items-start gap-2">
+                          <AlertTriangle size={16} className="shrink-0 mt-0.5"/>
+                          <span>Đang có <b>{incomingTransferCount} phiếu điều chuyển đến</b> chờ nhận. Nếu thuốc này là từ điều chuyển, hãy <b>đóng cửa sổ này</b> và dùng mục <b>"Phiếu điều chuyển đến"</b> (màu cam phía trên) để nhận — tránh cộng kho 2 lần.</span>
+                      </div>
+                  )}
+
                   <div className="p-4 bg-yellow-50 border-b border-yellow-100 flex items-center justify-between px-6">
                       <label className="flex items-center cursor-pointer select-none w-full group">
                           <div className="relative mr-3">

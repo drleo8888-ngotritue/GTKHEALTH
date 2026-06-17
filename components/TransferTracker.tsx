@@ -82,6 +82,23 @@ export const TransferTracker: React.FC<Props> = ({ stationConfig, currentUser, r
     else alert('Không xác nhận được: ' + (res?.message || 'lỗi không rõ'));
   };
 
+  // Trường hợp thuốc đã được nhập tay thủ công trước đó → chỉ đóng phiếu, KHÔNG cộng kho lại
+  const closeAlreadyImported = async () => {
+    if (!receiving) return;
+    if (!window.confirm(
+      'Bạn đã NHẬP TAY số thuốc này vào kho trước đó?\n\n' +
+      'Chọn OK: chỉ ĐÓNG phiếu (đánh dấu đã nhận), KHÔNG cộng kho lại — tránh nhân đôi tồn.'
+    )) return;
+    setBusy(true);
+    const res = await (window.electron as any).receiveTransfer({
+      transfer: receiving, alreadyImported: true,
+      actorName: currentUser?.name, actorRole: currentUser?.role,
+    });
+    setBusy(false);
+    if (res?.success) { setReceiving(null); await load(); onReceived?.(); }
+    else alert('Không đóng được phiếu: ' + (res?.message || 'lỗi không rõ'));
+  };
+
   // Có chênh lệch giữa SL chuyển và SL thực nhập đang nhập?
   const hasDiff = receiving && (receiving.medicines || []).some(
     (m: any) => (parseInt(qtyMap[m.name] ?? '0') || 0) !== (Number(m.qty) || 0)
@@ -207,6 +224,9 @@ export const TransferTracker: React.FC<Props> = ({ stationConfig, currentUser, r
               </span>
               <div className="flex gap-2">
                 <button onClick={() => setReceiving(null)} className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg font-bold text-sm hover:bg-gray-300">Hủy</button>
+                <button onClick={closeAlreadyImported} disabled={busy} title="Dùng khi đã nhập tay số thuốc này rồi" className="px-4 py-2 bg-amber-100 text-amber-800 border border-amber-300 rounded-lg font-bold text-sm hover:bg-amber-200 disabled:opacity-50">
+                  Đã nhập tay — đóng phiếu
+                </button>
                 <button onClick={confirmReceive} disabled={busy} className="flex items-center gap-2 px-5 py-2 bg-green-600 text-white rounded-lg font-bold text-sm hover:bg-green-700 disabled:opacity-50">
                   {busy ? <RefreshCw size={15} className="animate-spin" /> : <Check size={15} />}
                   Xác nhận nhập kho

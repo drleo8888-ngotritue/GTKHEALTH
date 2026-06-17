@@ -1235,9 +1235,25 @@ ipcMain.handle('server-sync:list-incoming-transfers', async () => {
 
 // Spoke: nhân viên xác nhận nhận thuốc. receivedItems = SỐ THỰC NHẬN (có thể khác SL chuyển).
 // Cộng kho theo số thực nhận; ghi chú chênh lệch để Hub thấy. Chống nhân đôi qua received_transfers.
-ipcMain.handle('server-sync:receive-transfer', async (_e, { transfer, receivedItems, actorName, actorRole } = {}) => {
+ipcMain.handle('server-sync:receive-transfer', async (_e, { transfer, receivedItems, alreadyImported, actorName, actorRole } = {}) => {
   try {
     if (!transfer || !transfer.id) return { success: false, message: 'Thiếu thông tin phiếu' };
+
+    // Trường hợp đã NHẬP TAY thủ công trước đó: chỉ đóng phiếu, KHÔNG cộng kho lại (chống nhân đôi).
+    if (alreadyImported) {
+      const note = 'Đóng phiếu: trạm đã nhập tay thủ công trước đó — không cộng kho qua phiếu.';
+      await dbService.markTransferReceived(transfer.id); // chặn mọi lần áp sau
+      await dbService.createInventoryLog({
+        id: require('crypto').randomUUID(), type: 'TRANSFER_IN',
+        source: transfer.source_station, target: transfer.target_station,
+        timestamp: Date.now(), note, items: [],
+        actorName: actorName || 'Unknown', actorRole: actorRole || 'STAFF',
+      });
+      await syncServer.confirmTransfer(transfer.id, note);
+      BrowserWindow.getAllWindows().forEach(win => { if (!win.isDestroyed()) win.webContents.send('data:update'); });
+      return { success: true };
+    }
+
     // Nguồn số liệu áp kho: ưu tiên số thực nhận do nhân viên nhập; nếu không có thì dùng SL chuyển.
     const planned = Array.isArray(transfer.medicines) ? transfer.medicines : [];
     const actual = Array.isArray(receivedItems) && receivedItems.length ? receivedItems : planned;

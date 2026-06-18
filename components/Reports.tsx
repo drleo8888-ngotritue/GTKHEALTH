@@ -538,11 +538,14 @@ export const Reports: React.FC<ReportsProps> = ({ stationConfig, currentUser, re
     const data = rows.map((e, idx) => {
         const startDate = new Date(e.startTime);
         const endDate = e.endTime ? new Date(e.endTime) : null;
+        const isTransfer = e.status === EncounterStatus.COMPLETED_TRANSFER;
         const row: any = {
+            'Trạng thái': isTransfer ? 'CHUYỂN VIỆN / 转院' : '',
             'STT': idx + 1,
             'Ngày vào khám': `${String(startDate.getDate()).padStart(2,'0')}/${String(startDate.getMonth()+1).padStart(2,'0')}/${startDate.getFullYear()}`,
             'Mã NV': e.patientId,
             'Họ và tên': e.patientName,
+            'Bộ phận': e.department || '-',
             'Chẩn đoán': e.diagnosis || '-',
             'Nhóm bệnh': e.diseaseGroup || '-',
             'Giờ vào': fmtTime(e.startTime),
@@ -560,16 +563,29 @@ export const Reports: React.FC<ReportsProps> = ({ stationConfig, currentUser, re
 
     const ws = XLSX.utils.json_to_sheet(data);
 
-    // Tự động chỉnh độ rộng cột
+    // Tự động chỉnh độ rộng cột (cột đầu = Trạng thái)
     const wscols = [
-        {wch: 5}, {wch: 14}, {wch: 12}, {wch: 25}, {wch: 30}, {wch: 22}, {wch: 10}, {wch: 10}
+        {wch: 16}, {wch: 5}, {wch: 14}, {wch: 12}, {wch: 25}, {wch: 22}, {wch: 30}, {wch: 22}, {wch: 10}, {wch: 10}
     ];
     allMedicineNames.forEach(() => wscols.push({wch: 15}));
     ws['!cols'] = wscols;
 
+    // Highlight cả dòng cho ca CHUYỂN VIỆN (nền cam nhạt)
+    const TRANSFER_FILL = { patternType: 'solid', fgColor: { rgb: 'FFE0B2' } };
+    const range = XLSX.utils.decode_range(ws['!ref'] as string);
+    data.forEach((row, idx) => {
+        if (!row['Trạng thái']) return;            // chỉ dòng chuyển viện
+        const r = idx + 1;                         // +1 vì hàng 0 là tiêu đề
+        for (let c = range.s.c; c <= range.e.c; c++) {
+            const ref = XLSX.utils.encode_cell({ r, c });
+            if (!ws[ref]) ws[ref] = { t: 's', v: '' };
+            ws[ref].s = { ...(ws[ref].s || {}), fill: TRANSFER_FILL };
+        }
+    });
+
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Báo cáo chi tiết");
-    XLSX.writeFile(wb, `Bao_cao_SmartMedical_${startDate}_den_${endDate}.xlsx`);
+    XLSX.writeFile(wb, `Bao_cao_SmartMedical_${startDate}_den_${endDate}.xlsx`, { cellStyles: true });
   };
 
   return (
